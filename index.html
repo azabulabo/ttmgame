@@ -3,28 +3,37 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>送別会スイカ - スコアアタックEdition</title>
+    <title>送別会スイカ - 完全版</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
     <style>
         :root { --base-width: 375px; --base-height: 667px; }
         body { margin: 0; padding: 0; background: #000; display: flex; justify-content: center; align-items: center; height: 100vh; overflow: hidden; font-family: sans-serif; touch-action: none; }
         #game-container { position: relative; width: var(--base-width); height: var(--base-height); background: radial-gradient(circle, #2c3e50 0%, #1a1a2e 100%); overflow: hidden; }
+        
+        /* UI Layer */
         #ui-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 10; }
         #score-box { position: absolute; top: 15px; left: 15px; }
         #timer-box { position: absolute; top: 15px; left: 50%; transform: translateX(-50%); text-align: center; }
-        #next-container { position: absolute; top: 15px; right: 10px; width: 90px; height: 50px; background: rgba(255,255,255,0.1); border-radius: 25px; display: flex; align-items: center; justify-content: space-around; border: 1px solid rgba(255,255,255,0.2); }
-        .next-emoji { font-size: 24px; }
+        
+        /* Next Display */
+        #next-container { 
+            position: absolute; top: 35px; right: 10px; 
+            width: 80px; height: 45px; background: rgba(255,255,255,0.1); 
+            border-radius: 20px; display: flex; align-items: center; justify-content: space-around; 
+            border: 1px solid rgba(255,255,255,0.2); 
+        }
+        #next-label { position: absolute; top: 18px; right: 25px; color: #aaa; font-size: 10px; font-weight: bold; }
+        .next-emoji { font-size: 22px; }
+        
         .value { font-size: 26px; font-weight: bold; color: #fff; text-shadow: 0 0 8px #f1c40f; }
         
-        /* 特殊演出 */
+        /* Effects */
         #special-effects { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 15; display: none; }
         #confetti { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 100px; animation: party 1.5s ease-out forwards; }
         @keyframes party { 0% { scale: 0; opacity: 1; } 100% { scale: 3; opacity: 0; } }
         
         #game-over { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(0,0,0,0.95); color: white; padding: 40px; border-radius: 20px; text-align: center; display: none; z-index: 20; border: 3px solid #f1c40f; width: 70%; }
-        
-        /* クールダウン中の表示 */
-        #cooldown-indicator { position: absolute; top: 60px; left: 50%; transform: translateX(-50%); color: #f1c40f; font-size: 12px; font-weight: bold; opacity: 0; transition: opacity 0.2s; }
+        #cooldown-indicator { position: absolute; top: 85px; left: 50%; transform: translateX(-50%); color: #f1c40f; font-size: 12px; font-weight: bold; opacity: 0; }
         #cooldown-indicator.active { opacity: 1; }
     </style>
 </head>
@@ -33,11 +42,15 @@
     <div id="ui-layer">
         <div id="score-box"><div style="font-size:10px; color:#aaa;">SCORE</div><div id="score" class="value">0</div></div>
         <div id="timer-box"><div style="font-size:10px; color:#aaa;">TIME</div><div id="timer" class="value">60</div></div>
-        <div id="next-container"><div id="n1" class="next-emoji"></div><div id="n2" class="next-emoji" style="opacity: 0.4;"></div></div>
-        <div id="cooldown-indicator">WAIT...</div>
+        <div id="next-label">NEXT</div>
+        <div id="next-container">
+            <div id="n1" class="next-emoji"></div>
+            <div id="n2" class="next-emoji" style="opacity: 0.3;"></div>
+        </div>
+        <div id="cooldown-indicator">LOADING...</div>
     </div>
     <div id="special-effects"><div id="confetti">🎉</div></div>
-    <div id="game-over"><h1 id="over-title">終了！</h1><p>最終スコア</p><div id="final-score" class="value" style="font-size:40px;">0</div><button onclick="location.reload()" style="margin-top:20px; padding:10px 20px; border-radius:20px; background:#f1c40f; border:none; font-weight:bold; cursor:pointer;">もう一度遊ぶ</button></div>
+    <div id="game-over"><h1 id="over-title">終了！</h1><p>最終スコア</p><div id="final-score" class="value" style="font-size:40px;">0</div><button onclick="location.reload()" style="margin-top:20px; padding:10px 20px; border-radius:20px; background:#f1c40f; border:none; font-weight:bold; cursor:pointer;">リトライ</button></div>
 </div>
 
 <script>
@@ -54,11 +67,16 @@ const EMOJIS = ["😀", "😊", "😎", "🤩", "🥳", "😇", "👑"];
 const OBSTACLE = "💣";
 
 let score = 0, timeLeft = 60, isGameOver = false;
-let nextQueue = [0, 1].map(() => Math.floor(Math.random() * 3));
+// キューを3つ用意（現在の待機用、Next1用、Next2用）
+let nextQueue = [0, 0, 0].map(() => Math.floor(Math.random() * 3));
 let isDragging = false, currentX = WIDTH / 2, previewAngle = 0, lastX = WIDTH / 2;
-let canDrop = true; // 連打防止フラグ
+let canDrop = true;
 
 const engine = Engine.create();
+// 合体の反応を良くするための設定
+engine.constraintIterations = 10;
+engine.positionIterations = 10;
+
 const render = Render.create({ element: document.getElementById('game-container'), engine: engine, options: { width: WIDTH, height: HEIGHT, wireframes: false, background: 'transparent' } });
 
 World.add(engine.world, [
@@ -70,7 +88,7 @@ World.add(engine.world, [
 function spawn(x, y, level, isObstacle = false, sizeOverride = null) {
     const radius = isObstacle ? (sizeOverride || 20) : (level + 1) * 16 + 8;
     const body = Bodies.circle(x, y, radius, { 
-        restitution: 0.2, friction: 0.2, 
+        restitution: 0.3, friction: 0.1, slop: 0, // 合体感度向上のためslopを0に
         label: isObstacle ? "obs" : "friend", level: level, 
         render: { visible: false } 
     });
@@ -80,8 +98,8 @@ function spawn(x, y, level, isObstacle = false, sizeOverride = null) {
 }
 
 function updateUI() { 
-    document.getElementById('n1').innerText = EMOJIS[nextQueue[0]]; 
-    document.getElementById('n2').innerText = EMOJIS[nextQueue[1]]; 
+    document.getElementById('n1').innerText = EMOJIS[nextQueue[1]]; 
+    document.getElementById('n2').innerText = EMOJIS[nextQueue[2]]; 
     document.getElementById('score').innerText = score; 
 }
 
@@ -90,7 +108,7 @@ const handleMove = (e) => { if (!isDragging || isGameOver) return; updateX(e); }
 const handleEnd = () => { 
     if (!isDragging || isGameOver || !canDrop) return; 
     isDragging = false; 
-    canDrop = false; // クールダウン開始
+    canDrop = false;
     document.getElementById('cooldown-indicator').classList.add('active');
 
     spawn(currentX, 60, nextQueue.shift()); 
@@ -98,7 +116,6 @@ const handleEnd = () => {
     updateUI(); 
     previewAngle = 0;
 
-    // 1秒後に再度落とせるようにする
     setTimeout(() => {
         canDrop = true;
         document.getElementById('cooldown-indicator').classList.remove('active');
@@ -141,12 +158,17 @@ Events.on(engine, 'collisionStart', (event) => {
 
 Events.on(render, 'afterRender', () => {
     const ctx = render.context;
-    // クールダウン中でない時だけプレビューとガイド線を表示
-    if (isDragging && !isGameOver && canDrop) {
+    
+    // 準備状態・ドラッグ中のプレビュー（常に表示）
+    if (!isGameOver && canDrop) {
         const r = (nextQueue[0] + 1) * 16 + 8;
-        ctx.setLineDash([5, 8]); ctx.beginPath(); ctx.moveTo(currentX, 60); ctx.lineTo(currentX, HEIGHT); ctx.strokeStyle = "rgba(255,255,255,0.2)"; ctx.stroke(); ctx.setLineDash([]);
+        // ガイド線はドラッグ中のみ表示
+        if (isDragging) {
+            ctx.setLineDash([5, 8]); ctx.beginPath(); ctx.moveTo(currentX, 60); ctx.lineTo(currentX, HEIGHT); ctx.strokeStyle = "rgba(255,255,255,0.2)"; ctx.stroke(); ctx.setLineDash([]);
+        }
         ctx.save(); ctx.translate(currentX, 60); ctx.rotate(previewAngle); ctx.font = `${r * 2.1}px Arial`; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillText(EMOJIS[nextQueue[0]], 0, 0); ctx.restore();
     }
+
     Composite.allBodies(engine.world).forEach(b => {
         if (b.emoji) {
             ctx.save(); ctx.translate(b.position.x, b.position.y); ctx.rotate(b.angle);
