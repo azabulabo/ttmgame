@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>送別会スイカ - 究極SE Edition</title>
+    <title>送別会スイカ - 調整版SE Edition</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
     <style>
         :root { --base-width: 375px; --base-height: 667px; }
@@ -20,13 +20,9 @@
             background: radial-gradient(circle, #2c3e50 0%, #1a1a2e 100%);
             overflow: hidden;
         }
-
-        /* UI */
         #ui-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 10; }
         #score-box { position: absolute; top: 15px; left: 15px; }
         #timer-box { position: absolute; top: 15px; left: 50%; transform: translateX(-50%); text-align: center; }
-        
-        /* Next 2つのみ */
         #next-container {
             position: absolute; top: 15px; right: 10px; 
             width: 90px; height: 50px; background: rgba(255,255,255,0.1);
@@ -35,21 +31,13 @@
         }
         .next-emoji { font-size: 24px; }
         .next-label { position: absolute; top: 2px; right: 40px; font-size: 8px; color: #aaa; }
-
         .label { font-size: 10px; color: #bdc3c7; }
         .value { font-size: 26px; font-weight: bold; color: #fff; text-shadow: 0 0 8px #f1c40f; }
-
-        #deadline {
-            position: absolute; top: 100px; width: 100%; height: 2px;
-            background: repeating-linear-gradient(90deg, #e74c3c, #e74c3c 10px, transparent 10px, transparent 20px);
-            opacity: 0.3;
-        }
-
+        #deadline { position: absolute; top: 100px; width: 100%; height: 2px; background: rgba(231, 76, 60, 0.3); }
         #game-over {
             position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
             background: rgba(0,0,0,0.95); color: white; padding: 40px;
-            border-radius: 20px; text-align: center; display: none; z-index: 20; border: 3px solid #f1c40f;
-            width: 70%;
+            border-radius: 20px; text-align: center; display: none; z-index: 20; border: 3px solid #f1c40f; width: 70%;
         }
     </style>
 </head>
@@ -75,7 +63,7 @@
 </div>
 
 <script>
-// --- パスワード管理 (sessionStorage) ---
+// --- 認証 ---
 const PASSWORD = "968";
 if (!sessionStorage.getItem("auth_ok")) {
     if (prompt("パスワードを入力 (968)") === PASSWORD) {
@@ -92,12 +80,13 @@ const EMOJIS = ["😀", "😊", "😎", "🤩", "🥳", "😇", "👑"];
 const OBSTACLE = "💣";
 
 let score = 0, timeLeft = 60, isGameOver = false;
-let nextQueue = [0, 1].map(() => Math.floor(Math.random() * 3));
+let nextQueue = [Math.floor(Math.random()*3), Math.floor(Math.random()*3)];
 
-// 操作用変数
+// 操作用
 let isDragging = false;
 let currentX = WIDTH / 2;
 let previewAngle = 0;
+let lastX = WIDTH / 2;
 
 const engine = Engine.create();
 const render = Render.create({
@@ -118,7 +107,6 @@ function spawn(x, y, level, isObstacle = false, sizeOverride = null) {
     const body = Bodies.circle(x, y, radius, {
         restitution: 0.2,
         friction: 0.1,
-        density: isObstacle ? 0.05 : 0.001,
         label: isObstacle ? "obs" : "friend",
         level: level,
         render: { visible: false }
@@ -135,10 +123,9 @@ function updateUI() {
     document.getElementById('score').innerText = score;
 }
 
-// --- ドラッグ & 落下システム ---
 const getX = (e) => {
     const rect = render.canvas.getBoundingClientRect();
-    const clientX = e.clientX || (e.touches && e.touches[0].clientX);
+    const clientX = (e.clientX !== undefined) ? e.clientX : (e.touches ? e.touches[0].clientX : currentX);
     return Math.max(30, Math.min(WIDTH - 30, clientX - rect.left));
 };
 
@@ -146,31 +133,33 @@ const handleStart = (e) => {
     if (isGameOver || timeLeft <= 0) return;
     isDragging = true;
     currentX = getX(e);
+    lastX = currentX;
 };
 
 const handleMove = (e) => {
     if (!isDragging || isGameOver) return;
     currentX = getX(e);
+    // 動かした分だけ回転させる
+    previewAngle += (currentX - lastX) * 0.05;
+    lastX = currentX;
 };
 
-const handleEnd = (e) => {
+const handleEnd = () => {
     if (!isDragging || isGameOver) return;
     isDragging = false;
-    
-    // 離した瞬間に生成
     spawn(currentX, 50, nextQueue.shift());
     nextQueue.push(Math.floor(Math.random() * 3));
     updateUI();
+    previewAngle = 0; // 次のプレビュー用にリセット
 };
 
 window.addEventListener('mousedown', handleStart);
 window.addEventListener('mousemove', handleMove);
 window.addEventListener('mouseup', handleEnd);
-window.addEventListener('touchstart', (e) => { e.preventDefault(); handleStart(e); });
-window.addEventListener('touchmove', (e) => { e.preventDefault(); handleMove(e); });
+window.addEventListener('touchstart', (e) => { e.preventDefault(); handleStart(e); }, {passive: false});
+window.addEventListener('touchmove', (e) => { e.preventDefault(); handleMove(e); }, {passive: false});
 window.addEventListener('touchend', handleEnd);
 
-// 合体
 Events.on(engine, 'collisionStart', (event) => {
     event.pairs.forEach(pair => {
         const { bodyA, bodyB } = pair;
@@ -188,7 +177,6 @@ Events.on(engine, 'collisionStart', (event) => {
     });
 });
 
-// ゲームオーバー判定
 Events.on(engine, 'afterUpdate', () => {
     if (isGameOver) return;
     const bodies = Composite.allBodies(engine.world);
@@ -209,71 +197,59 @@ function endGame(title) {
     document.getElementById('final-score').innerText = score;
 }
 
-// 描画 & ガイド線
 Events.on(render, 'afterRender', () => {
     const ctx = render.context;
-
-    // 1. ガイド線とプレビュー顔（ドラッグ中）
     if (isDragging && !isGameOver) {
         const level = nextQueue[0];
         const radius = (level + 1) * 16 + 5;
-        
-        // 点線
         ctx.beginPath();
         ctx.setLineDash([5, 8]);
-        ctx.moveTo(currentX, 50);
-        ctx.lineTo(currentX, HEIGHT);
-        ctx.strokeStyle = "rgba(255,255,255,0.3)";
-        ctx.stroke();
+        ctx.moveTo(currentX, 50); ctx.lineTo(currentX, HEIGHT);
+        ctx.strokeStyle = "rgba(255,255,255,0.2)"; ctx.stroke();
         ctx.setLineDash([]);
-
-        // プレビュー顔の回転
-        previewAngle += 0.05;
         ctx.save();
         ctx.translate(currentX, 50);
         ctx.rotate(previewAngle);
         ctx.font = `${radius * 2.1}px Arial`;
-        ctx.textAlign = "center";
-        ctx.textBaseline = "middle";
+        ctx.textAlign = "center"; ctx.textBaseline = "middle";
         ctx.fillText(EMOJIS[level], 0, 0);
         ctx.restore();
     }
-
-    // 2. 落ちている顔たちの描画
     Composite.allBodies(engine.world).forEach(b => {
         if (b.emoji) {
             ctx.save();
             ctx.translate(b.position.x, b.position.y);
             ctx.rotate(b.angle);
             ctx.font = `${b.radius * 2.1}px Arial`;
-            ctx.textAlign = "center";
-            ctx.textBaseline = "middle";
+            ctx.textAlign = "center"; ctx.textBaseline = "middle";
             ctx.fillText(b.emoji, 0, 0);
             ctx.restore();
         }
     });
 });
 
-// タイマー
 const timerInterval = setInterval(() => {
     if (isGameOver) return;
     timeLeft--;
     document.getElementById('timer').innerText = timeLeft;
-    if (timeLeft <= 0) {
-        clearInterval(timerInterval);
-        endGame("TIME UP!");
-    }
+    if (timeLeft <= 0) { clearInterval(timerInterval); endGame("TIME UP!"); }
 }, 1000);
 
-// オジャマ激化ループ
+// --- オジャマ激化ロジック (10秒後から開始) ---
 function obstacleLoop() {
     if (isGameOver) return;
-    let delay = 3000, size = 20;
-    if (timeLeft <= 10) { delay = 160; size = 20 + Math.random()*25; }
-    else if (timeLeft <= 40) { delay = 2000 - (40-timeLeft)*40; size = 20 + (40-timeLeft)/2; }
     
-    spawn(Math.random() * (WIDTH-60)+30, -50, 0, true, size);
-    setTimeout(obstacleLoop, delay);
+    // 最初の10秒（timeLeft 60~50）は落とさない
+    if (timeLeft <= 50) {
+        let delay = 3000, size = 20;
+        if (timeLeft <= 10) { delay = 160; size = 20 + Math.random()*25; }
+        else if (timeLeft <= 40) { delay = 2000 - (40-timeLeft)*40; size = 20 + (40-timeLeft)/2; }
+        spawn(Math.random() * (WIDTH-60)+30, -50, 0, true, size);
+        setTimeout(obstacleLoop, delay);
+    } else {
+        // 10秒経つまで短いスパンでチェックし続ける
+        setTimeout(obstacleLoop, 500);
+    }
 }
 obstacleLoop();
 
