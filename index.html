@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>送別会スイカ - 極限SE Edition</title>
+    <title>送別会スイカ - 究極SE Edition</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
     <style>
         :root { --base-width: 375px; --base-height: 667px; }
@@ -11,12 +11,13 @@
             margin: 0; padding: 0; background: #000; 
             display: flex; justify-content: center; align-items: center; 
             height: 100vh; overflow: hidden; font-family: sans-serif;
+            touch-action: none;
         }
         #game-container {
             position: relative;
             width: var(--base-width);
             height: var(--base-height);
-            background: radial-gradient(circle, #2c3e50 0%, #000 100%);
+            background: radial-gradient(circle, #2c3e50 0%, #1a1a2e 100%);
             overflow: hidden;
         }
 
@@ -25,30 +26,24 @@
         #score-box { position: absolute; top: 15px; left: 15px; }
         #timer-box { position: absolute; top: 15px; left: 50%; transform: translateX(-50%); text-align: center; }
         
-        /* Next 横向き & スライド */
+        /* Next 2つのみ */
         #next-container {
             position: absolute; top: 15px; right: 10px; 
-            width: 130px; height: 50px; background: rgba(255,255,255,0.1);
-            border-radius: 25px; overflow: hidden;
+            width: 90px; height: 50px; background: rgba(255,255,255,0.1);
+            border-radius: 25px; display: flex; align-items: center; justify-content: space-around;
             border: 1px solid rgba(255,255,255,0.2);
         }
-        #next-slider {
-            display: flex; position: absolute; left: 10px; top: 0; height: 100%;
-            align-items: center; transition: transform 0.2s cubic-bezier(0.18, 0.89, 0.32, 1.28);
-        }
-        .next-emoji { font-size: 24px; min-width: 40px; text-align: center; }
-        .next-label { position: absolute; top: 5px; right: 60px; font-size: 8px; color: #aaa; }
+        .next-emoji { font-size: 24px; }
+        .next-label { position: absolute; top: 2px; right: 40px; font-size: 8px; color: #aaa; }
 
         .label { font-size: 10px; color: #bdc3c7; }
         .value { font-size: 26px; font-weight: bold; color: #fff; text-shadow: 0 0 8px #f1c40f; }
 
-        /* デッドライン */
         #deadline {
             position: absolute; top: 100px; width: 100%; height: 2px;
             background: repeating-linear-gradient(90deg, #e74c3c, #e74c3c 10px, transparent 10px, transparent 20px);
-            opacity: 0.5; animation: flash 1s infinite;
+            opacity: 0.3;
         }
-        @keyframes flash { 0%, 100% { opacity: 0.2; } 50% { opacity: 0.8; } }
 
         #game-over {
             position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
@@ -67,26 +62,28 @@
         <div id="timer-box"><div class="label">TIME</div><div id="timer" class="value">60</div></div>
         <div class="next-label">NEXT</div>
         <div id="next-container">
-            <div id="next-slider">
-                <div id="n1" class="next-emoji"></div>
-                <div id="n2" class="next-emoji"></div>
-                <div id="n3" class="next-emoji" style="opacity: 0.4;"></div>
-            </div>
+            <div id="n1" class="next-emoji"></div>
+            <div id="n2" class="next-emoji" style="opacity: 0.4;"></div>
         </div>
     </div>
     <div id="game-over">
         <h1 id="over-title">終了！</h1>
         <p>最終スコア</p>
         <div id="final-score" class="value" style="font-size: 40px;">0</div>
-        <button onclick="location.reload()" style="margin-top:20px; padding:10px 20px; border-radius: 20px; border:none; background:#f1c40f; font-weight:bold;">もう一度遊ぶ</button>
+        <button onclick="location.reload()" style="margin-top:20px; padding:10px 20px; border-radius: 20px; border:none; background:#f1c40f; font-weight:bold;">リトライ</button>
     </div>
 </div>
 
 <script>
+// --- パスワード管理 (sessionStorage) ---
 const PASSWORD = "968";
-if (prompt("パスワードを入力") !== PASSWORD) {
-    document.body.innerHTML = "<h1>Forbidden</h1>";
-    throw new Error();
+if (!sessionStorage.getItem("auth_ok")) {
+    if (prompt("パスワードを入力 (968)") === PASSWORD) {
+        sessionStorage.setItem("auth_ok", "true");
+    } else {
+        document.body.innerHTML = "<h1>Forbidden</h1>";
+        throw new Error();
+    }
 }
 
 const { Engine, Render, Runner, World, Bodies, Events, Composite } = Matter;
@@ -95,7 +92,12 @@ const EMOJIS = ["😀", "😊", "😎", "🤩", "🥳", "😇", "👑"];
 const OBSTACLE = "💣";
 
 let score = 0, timeLeft = 60, isGameOver = false;
-let nextQueue = [0, 1, 2].map(() => Math.floor(Math.random() * 3));
+let nextQueue = [0, 1].map(() => Math.floor(Math.random() * 3));
+
+// 操作用変数
+let isDragging = false;
+let currentX = WIDTH / 2;
+let previewAngle = 0;
 
 const engine = Engine.create();
 const render = Render.create({
@@ -112,12 +114,11 @@ World.add(engine.world, [
 ]);
 
 function spawn(x, y, level, isObstacle = false, sizeOverride = null) {
-    // 判定を厳密にするため、半径を少し大きめ、描画倍率を調整
     const radius = isObstacle ? (sizeOverride || 20) : (level + 1) * 16 + 5;
     const body = Bodies.circle(x, y, radius, {
-        restitution: 0.2, // 跳ねすぎ防止
+        restitution: 0.2,
         friction: 0.1,
-        density: isObstacle ? 0.1 : 0.001, // 爆弾は重く
+        density: isObstacle ? 0.05 : 0.001,
         label: isObstacle ? "obs" : "friend",
         level: level,
         render: { visible: false }
@@ -128,39 +129,48 @@ function spawn(x, y, level, isObstacle = false, sizeOverride = null) {
     return body;
 }
 
-function updateNextUI(animate = false) {
-    const slider = document.getElementById('next-slider');
-    if (animate) {
-        slider.style.transition = 'none';
-        slider.style.transform = 'translateX(40px)';
-        setTimeout(() => {
-            slider.style.transition = 'transform 0.2s cubic-bezier(0.18, 0.89, 0.32, 1.28)';
-            slider.style.transform = 'translateX(0px)';
-        }, 10);
-    }
+function updateUI() {
     document.getElementById('n1').innerText = EMOJIS[nextQueue[0]];
     document.getElementById('n2').innerText = EMOJIS[nextQueue[1]];
-    document.getElementById('n3').innerText = EMOJIS[nextQueue[2]];
+    document.getElementById('score').innerText = score;
 }
 
-let canDrop = true;
-const handleInput = (e) => {
-    if (!canDrop || isGameOver) return;
+// --- ドラッグ & 落下システム ---
+const getX = (e) => {
     const rect = render.canvas.getBoundingClientRect();
     const clientX = e.clientX || (e.touches && e.touches[0].clientX);
-    const x = Math.max(30, Math.min(WIDTH - 30, clientX - rect.left));
-
-    spawn(x, 50, nextQueue.shift());
-    nextQueue.push(Math.floor(Math.random() * 3));
-    updateNextUI(true);
-
-    canDrop = false;
-    setTimeout(() => { canDrop = true; }, 600);
+    return Math.max(30, Math.min(WIDTH - 30, clientX - rect.left));
 };
 
-render.canvas.addEventListener('mousedown', handleInput);
-render.canvas.addEventListener('touchstart', (e) => { e.preventDefault(); handleInput(e); });
+const handleStart = (e) => {
+    if (isGameOver || timeLeft <= 0) return;
+    isDragging = true;
+    currentX = getX(e);
+};
 
+const handleMove = (e) => {
+    if (!isDragging || isGameOver) return;
+    currentX = getX(e);
+};
+
+const handleEnd = (e) => {
+    if (!isDragging || isGameOver) return;
+    isDragging = false;
+    
+    // 離した瞬間に生成
+    spawn(currentX, 50, nextQueue.shift());
+    nextQueue.push(Math.floor(Math.random() * 3));
+    updateUI();
+};
+
+window.addEventListener('mousedown', handleStart);
+window.addEventListener('mousemove', handleMove);
+window.addEventListener('mouseup', handleEnd);
+window.addEventListener('touchstart', (e) => { e.preventDefault(); handleStart(e); });
+window.addEventListener('touchmove', (e) => { e.preventDefault(); handleMove(e); });
+window.addEventListener('touchend', handleEnd);
+
+// 合体
 Events.on(engine, 'collisionStart', (event) => {
     event.pairs.forEach(pair => {
         const { bodyA, bodyB } = pair;
@@ -178,13 +188,12 @@ Events.on(engine, 'collisionStart', (event) => {
     });
 });
 
-// ゲームオーバー判定 (デッドライン)
+// ゲームオーバー判定
 Events.on(engine, 'afterUpdate', () => {
     if (isGameOver) return;
     const bodies = Composite.allBodies(engine.world);
     for (let body of bodies) {
         if (!body.isStatic && body.position.y < LIMIT_Y && body.position.y > 60) {
-            // スポーン直後（y=50付近）は除外、静止に近い状態でラインを超えたらアウト
             if (Math.abs(body.velocity.y) < 0.1) {
                 endGame("OVER LINE!");
                 break;
@@ -200,14 +209,43 @@ function endGame(title) {
     document.getElementById('final-score').innerText = score;
 }
 
+// 描画 & ガイド線
 Events.on(render, 'afterRender', () => {
     const ctx = render.context;
+
+    // 1. ガイド線とプレビュー顔（ドラッグ中）
+    if (isDragging && !isGameOver) {
+        const level = nextQueue[0];
+        const radius = (level + 1) * 16 + 5;
+        
+        // 点線
+        ctx.beginPath();
+        ctx.setLineDash([5, 8]);
+        ctx.moveTo(currentX, 50);
+        ctx.lineTo(currentX, HEIGHT);
+        ctx.strokeStyle = "rgba(255,255,255,0.3)";
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        // プレビュー顔の回転
+        previewAngle += 0.05;
+        ctx.save();
+        ctx.translate(currentX, 50);
+        ctx.rotate(previewAngle);
+        ctx.font = `${radius * 2.1}px Arial`;
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText(EMOJIS[level], 0, 0);
+        ctx.restore();
+    }
+
+    // 2. 落ちている顔たちの描画
     Composite.allBodies(engine.world).forEach(b => {
         if (b.emoji) {
             ctx.save();
             ctx.translate(b.position.x, b.position.y);
             ctx.rotate(b.angle);
-            ctx.font = `${b.radius * 2.1}px Arial`; // 判定に合わせてサイズ調整
+            ctx.font = `${b.radius * 2.1}px Arial`;
             ctx.textAlign = "center";
             ctx.textBaseline = "middle";
             ctx.fillText(b.emoji, 0, 0);
@@ -216,6 +254,7 @@ Events.on(render, 'afterRender', () => {
     });
 });
 
+// タイマー
 const timerInterval = setInterval(() => {
     if (isGameOver) return;
     timeLeft--;
@@ -230,7 +269,7 @@ const timerInterval = setInterval(() => {
 function obstacleLoop() {
     if (isGameOver) return;
     let delay = 3000, size = 20;
-    if (timeLeft <= 10) { delay = 160; size = 20 + Math.random()*25; } // ラスト10秒
+    if (timeLeft <= 10) { delay = 160; size = 20 + Math.random()*25; }
     else if (timeLeft <= 40) { delay = 2000 - (40-timeLeft)*40; size = 20 + (40-timeLeft)/2; }
     
     spawn(Math.random() * (WIDTH-60)+30, -50, 0, true, size);
@@ -238,7 +277,7 @@ function obstacleLoop() {
 }
 obstacleLoop();
 
-updateNextUI();
+updateUI();
 Render.run(render);
 Runner.run(Runner.create(), engine);
 </script>
