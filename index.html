@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>送別会スイカ - 完全版</title>
+    <title>送別会スイカ - 最終調整版</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
     <style>
         :root { --base-width: 375px; --base-height: 667px; }
@@ -18,16 +18,16 @@
         /* Next Display */
         #next-container { 
             position: absolute; top: 35px; right: 10px; 
-            width: 80px; height: 45px; background: rgba(255,255,255,0.1); 
+            width: 85px; height: 45px; background: rgba(255,255,255,0.1); 
             border-radius: 20px; display: flex; align-items: center; justify-content: space-around; 
             border: 1px solid rgba(255,255,255,0.2); 
         }
-        #next-label { position: absolute; top: 18px; right: 25px; color: #aaa; font-size: 10px; font-weight: bold; }
+        /* NEXTの文字を左側の顔の上に配置 */
+        #next-label { position: absolute; top: 18px; right: 54px; color: #f1c40f; font-size: 10px; font-weight: bold; text-shadow: 0 0 5px rgba(0,0,0,0.5); }
         .next-emoji { font-size: 22px; }
         
         .value { font-size: 26px; font-weight: bold; color: #fff; text-shadow: 0 0 8px #f1c40f; }
         
-        /* Effects */
         #special-effects { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 15; display: none; }
         #confetti { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 100px; animation: party 1.5s ease-out forwards; }
         @keyframes party { 0% { scale: 0; opacity: 1; } 100% { scale: 3; opacity: 0; } }
@@ -61,19 +61,17 @@ if (!sessionStorage.getItem("auth_ok")) {
     else { document.body.innerHTML = "Access Denied"; throw new Error(); }
 }
 
-const { Engine, Render, Runner, World, Bodies, Events, Composite } = Matter;
+const { Engine, Render, Runner, World, Bodies, Events, Composite, Body } = Matter;
 const WIDTH = 375, HEIGHT = 667;
 const EMOJIS = ["😀", "😊", "😎", "🤩", "🥳", "😇", "👑"];
 const OBSTACLE = "💣";
 
 let score = 0, timeLeft = 60, isGameOver = false;
-// キューを3つ用意（現在の待機用、Next1用、Next2用）
 let nextQueue = [0, 0, 0].map(() => Math.floor(Math.random() * 3));
 let isDragging = false, currentX = WIDTH / 2, previewAngle = 0, lastX = WIDTH / 2;
 let canDrop = true;
 
 const engine = Engine.create();
-// 合体の反応を良くするための設定
 engine.constraintIterations = 10;
 engine.positionIterations = 10;
 
@@ -85,11 +83,12 @@ World.add(engine.world, [
     Bodies.rectangle(WIDTH + 15, HEIGHT/2, 30, HEIGHT, { isStatic: true })
 ]);
 
-function spawn(x, y, level, isObstacle = false, sizeOverride = null) {
+function spawn(x, y, level, isObstacle = false, sizeOverride = null, initialAngle = 0) {
     const radius = isObstacle ? (sizeOverride || 20) : (level + 1) * 16 + 8;
     const body = Bodies.circle(x, y, radius, { 
-        restitution: 0.3, friction: 0.1, slop: 0, // 合体感度向上のためslopを0に
-        label: isObstacle ? "obs" : "friend", level: level, 
+        restitution: 0.3, friction: 0.1, slop: 0,
+        label: isObstacle ? "obs" : "friend", level: level,
+        angle: initialAngle, // 落とした時の角度を保持
         render: { visible: false } 
     });
     body.radius = radius; body.emoji = isObstacle ? OBSTACLE : EMOJIS[level];
@@ -111,10 +110,11 @@ const handleEnd = () => {
     canDrop = false;
     document.getElementById('cooldown-indicator').classList.add('active');
 
-    spawn(currentX, 60, nextQueue.shift()); 
+    // 落とす瞬間のpreviewAngleを渡す
+    spawn(currentX, 60, nextQueue.shift(), false, null, previewAngle); 
     nextQueue.push(Math.floor(Math.random() * 3)); 
     updateUI(); 
-    previewAngle = 0;
+    previewAngle = 0; // 次の顔のためにリセット
 
     setTimeout(() => {
         canDrop = true;
@@ -127,7 +127,9 @@ function updateX(e) {
     const clientX = (e.clientX !== undefined) ? e.clientX : (e.touches ? e.touches[0].clientX : currentX);
     const x = clientX - rect.left;
     currentX = Math.max(40, Math.min(WIDTH - 40, x));
-    previewAngle += (currentX - lastX) * 0.05; lastX = currentX;
+    // 回転速度の計算（左右の動きに合わせて回転）
+    previewAngle += (currentX - lastX) * 0.05; 
+    lastX = currentX;
 }
 
 window.addEventListener('mousedown', handleStart); window.addEventListener('mousemove', handleMove); window.addEventListener('mouseup', handleEnd);
@@ -159,10 +161,8 @@ Events.on(engine, 'collisionStart', (event) => {
 Events.on(render, 'afterRender', () => {
     const ctx = render.context;
     
-    // 準備状態・ドラッグ中のプレビュー（常に表示）
     if (!isGameOver && canDrop) {
         const r = (nextQueue[0] + 1) * 16 + 8;
-        // ガイド線はドラッグ中のみ表示
         if (isDragging) {
             ctx.setLineDash([5, 8]); ctx.beginPath(); ctx.moveTo(currentX, 60); ctx.lineTo(currentX, HEIGHT); ctx.strokeStyle = "rgba(255,255,255,0.2)"; ctx.stroke(); ctx.setLineDash([]);
         }
