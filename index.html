@@ -160,4 +160,26 @@ Events.on(render, 'afterRender', () => {
 const timerInterval = setInterval(() => { 
     if (!isGameOver && timeLeft > 0) { 
         timeLeft--; 
-        document.getElementById('timer
+        document.getElementById('timer').innerText = timeLeft; 
+        if(timeLeft === 0) { 
+            isGameOver = true; 
+            document.getElementById('game-over').style.display = 'block'; 
+            document.getElementById('final-score').innerText = score; 
+        } 
+    } 
+}, 1000);
+
+function obstacleLoop() {
+    if (isGameOver) return;
+    if (timeLeft <= 50) {
+        let d = timeLeft <= 10 ? 180 : (timeLeft <= 40 ? 1000 : 3000);
+        spawn(Math.random() * (WIDTH-80)+40, -50, 0, true, timeLeft <= 10 ? 25 + Math.random()*20 : 20);
+        setTimeout(obstacleLoop, d);
+    } else setTimeout(obstacleLoop, 500);
+}
+obstacleLoop();
+
+updateUI(); Render.run(render); Runner.run(Runner.create(), engine);
+</script>
+</body>
+</html>
