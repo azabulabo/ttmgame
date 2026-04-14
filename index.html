@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>送別会スイカ - バランス調整版</title>
+    <title>送別会スイカ - 画像対応版</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
     <style>
         :root { --base-width: 375px; --base-height: 667px; }
@@ -25,10 +25,11 @@
         }
         @keyframes blink-red { 0% { background: rgba(231, 76, 60, 1); } 50% { background: rgba(231, 76, 60, 0.2); } 100% { background: rgba(231, 76, 60, 1); } }
 
+        /* NEXT 表示エリアの画像を調整 */
         #next-container { position: absolute; top: 35px; right: 10px; width: 85px; height: 45px; background: rgba(255,255,255,0.1); border-radius: 20px; display: flex; align-items: center; justify-content: space-around; border: 1px solid rgba(255,255,255,0.2); }
-        /* NEXTラベルを左側の顔（n1）の真上に配置 */
         #next-label { position: absolute; top: 18px; right: 52px; color: #f1c40f; font-size: 10px; font-weight: bold; }
-        .next-emoji { font-size: 22px; }
+        .next-image { width: 30px; height: 30px; object-fit: contain; }
+        
         .value { font-size: 24px; font-weight: bold; color: #fff; text-shadow: 0 0 8px #f1c40f; }
         
         #special-effects { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 15; display: none; }
@@ -37,19 +38,22 @@
         
         #game-over { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(0,0,0,0.95); color: white; padding: 40px; border-radius: 20px; text-align: center; display: none; z-index: 20; border: 3px solid #f1c40f; width: 75%; }
         #new-record { color: #ffeb3b; font-weight: bold; font-size: 18px; display: none; margin-bottom: 10px; }
+
+        /* ローディング画面 */
+        #loading { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: #000; color: #fff; display: flex; justify-content: center; align-items: center; z-index: 30; }
     </style>
 </head>
 <body>
 <div id="game-container">
-    <div id="deadline"></div>
+    <div id="loading">LOADING...</div> <div id="deadline"></div>
     <div id="ui-layer">
         <div id="score-box"><div style="font-size:10px; color:#aaa;">SCORE</div><div id="score" class="value">0</div></div>
         <div id="best-box"><div style="font-size:10px; color:#aaa;">BEST</div><div id="best-score" class="value" style="color:#f1c40f;">0</div></div>
         <div id="timer-box"><div style="font-size:10px; color:#aaa;">TIME</div><div id="timer" class="value">60</div></div>
         <div id="next-label">NEXT</div>
         <div id="next-container">
-            <div id="n1" class="next-emoji"></div>
-            <div id="n2" class="next-emoji" style="opacity: 0.3;"></div>
+            <img id="n1" class="next-image" src="">
+            <img id="n2" class="next-image" src="" style="opacity: 0.3;">
         </div>
     </div>
     <div id="special-effects"><div id="confetti">🎉</div></div>
@@ -63,6 +67,20 @@
 </div>
 
 <script>
+// --- 1. 画像の設定 (用意した画像のパスに変更してください) ---
+const FACE_IMAGE_SOURCES = [
+    "images/face_0.png", // レベル0 ( 🙂 )
+    "images/face_1.png", // レベル1 ( 😀 )
+    "images/face_2.png", // レベル2 ( 😊 )
+    "images/face_3.png", // レベル3 ( 😎 )
+    "images/face_4.png", // レベル4 ( 🤩 )
+    "images/face_5.png", // レベル5 ( 🥳 )
+    "images/face_6.png", // レベル6 ( 😇 )
+    "images/face_7.png"  // レベル7 ( 👑 )
+];
+const OBSTACLE_IMAGE_SOURCE = "images/bomb.png"; // オジャマ ( 💣 )
+
+// 認証
 const PASSWORD = "968";
 if (!sessionStorage.getItem("auth_ok")) {
     const input = prompt("パスワード (968)");
@@ -72,14 +90,15 @@ if (!sessionStorage.getItem("auth_ok")) {
 
 const { Engine, Render, Runner, World, Bodies, Events, Composite } = Matter;
 const WIDTH = 375, HEIGHT = 667, LIMIT_Y = 110;
-const EMOJIS = ["😀", "😊", "😎", "🤩", "🥳", "😇", "👑"];
-const OBSTACLE = "💣";
+
+// 画像オブジェクトを保持する配列
+const faceImages = [];
+let obstacleImage;
 
 let score = 0;
 let highScore = parseInt(localStorage.getItem('suika_high_score')) || 0;
 let timeLeft = 60, isGameOver = false;
 
-// 出現する顔を「下3つ（😀, 😊, 😎）」に限定
 const getNextLevel = () => Math.floor(Math.random() * 3);
 let nextQueue = [0, 0, 0].map(() => getNextLevel());
 
@@ -92,6 +111,43 @@ engine.positionIterations = 10;
 
 const render = Render.create({ element: document.getElementById('game-container'), engine: engine, options: { width: WIDTH, height: HEIGHT, wireframes: false, background: 'transparent' } });
 
+// --- 2. 画像の読み込み（プレロード）処理 ---
+let imagesLoaded = 0;
+const totalImages = FACE_IMAGE_SOURCES.length + 1; // 顔8種 + オジャマ
+
+function preloadImages(callback) {
+    FACE_IMAGE_SOURCES.forEach((src, index) => {
+        const img = new Image();
+        img.src = src;
+        img.onload = () => {
+            imagesLoaded++;
+            if (imagesLoaded === totalImages) {
+                document.getElementById('loading').style.display = 'none'; // ローディング画面を隠す
+                callback();
+            }
+        };
+        img.onerror = () => {
+            document.getElementById('loading').innerText = `ERROR: Failed to load ${src}`;
+        };
+        faceImages[index] = img;
+    });
+
+    // オジャマ💣の画像
+    obstacleImage = new Image();
+    obstacleImage.src = OBSTACLE_IMAGE_SOURCE;
+    obstacleImage.onload = () => {
+        imagesLoaded++;
+        if (imagesLoaded === totalImages) {
+            document.getElementById('loading').style.display = 'none';
+            callback();
+        }
+    };
+    obstacleImage.onerror = () => {
+        document.getElementById('loading').innerText = `ERROR: Failed to load ${OBSTACLE_IMAGE_SOURCE}`;
+    };
+}
+
+// 壁
 World.add(engine.world, [
     Bodies.rectangle(WIDTH/2, HEIGHT + 25, WIDTH, 50, { isStatic: true, friction: 0.5 }),
     Bodies.rectangle(-15, HEIGHT/2, 30, HEIGHT, { isStatic: true }),
@@ -99,21 +155,24 @@ World.add(engine.world, [
 ]);
 
 function spawn(x, y, level, isObstacle = false, sizeOverride = null, angle = 0) {
-    const radius = isObstacle ? (sizeOverride || 20) : (level + 1) * 16 + 8;
+    const radius = isObstacle ? (sizeOverride || 20) : (level + 1) * 12 + 8;
     const body = Bodies.circle(x, y, radius, { 
         restitution: 0.3, friction: 0.1, slop: 0,
         label: isObstacle ? "obs" : "friend", level: level,
         angle: angle,
         render: { visible: false } 
     });
-    body.radius = radius; body.emoji = isObstacle ? OBSTACLE : EMOJIS[level];
+    body.radius = radius;
+    // emojiプロパティの代わりにlabelとlevelを使用
     World.add(engine.world, body);
     return body;
 }
 
+// --- 3. UI（NEXT）の画像更新処理 ---
 function updateUI() { 
-    document.getElementById('n1').innerText = EMOJIS[nextQueue[1]]; 
-    document.getElementById('n2').innerText = EMOJIS[nextQueue[2]]; 
+    // src属性を画像のパスに更新
+    document.getElementById('n1').src = FACE_IMAGE_SOURCES[nextQueue[1]]; 
+    document.getElementById('n2').src = FACE_IMAGE_SOURCES[nextQueue[2]]; 
     document.getElementById('score').innerText = score; 
     document.getElementById('best-score').innerText = highScore;
 }
@@ -152,11 +211,11 @@ Events.on(engine, 'collisionStart', (event) => {
             const ny = (bodyA.position.y + bodyB.position.y) / 2;
             const level = bodyA.level;
             World.remove(engine.world, [bodyA, bodyB]);
-            if (level < 6) {
+            if (level < 7) {
                 spawn(nx, ny, level + 1);
                 score += (level + 2) * 20;
             } else {
-                score += 2000;
+                score += 3000;
                 document.getElementById('special-effects').style.display = 'block';
                 setTimeout(() => { document.getElementById('special-effects').style.display = 'none'; }, 1500);
             }
@@ -170,7 +229,7 @@ Events.on(engine, 'afterUpdate', () => {
     const bodies = Composite.allBodies(engine.world);
     let highestY = 999;
     bodies.forEach(b => {
-        if (!b.isStatic && b.label === "friend" && b.position.y > 75) {
+        if (!b.isStatic && b.label === "friend" && b.position.y > 80) {
             if (b.position.y < highestY) highestY = b.position.y;
         }
     });
@@ -179,8 +238,7 @@ Events.on(engine, 'afterUpdate', () => {
     if (highestY < LIMIT_Y) {
         dl.classList.add('danger');
         if (!overLineStartTime) overLineStartTime = Date.now();
-        const elapsed = (Date.now() - overLineStartTime) / 1000;
-        if (elapsed > 3) endGame("デッドライン超過！");
+        if ((Date.now() - overLineStartTime) / 1000 > 3) endGame("デッドライン超過！");
     } else {
         dl.classList.remove('danger');
         overLineStartTime = null;
@@ -200,21 +258,48 @@ function endGame(reason) {
     updateUI();
 }
 
+// --- 4. 描画処理 (画像描画に変更) ---
 Events.on(render, 'afterRender', () => {
     const ctx = render.context;
+    
+    // a) ドラッグ中/待機中のプレビュー
     if (!isGameOver && canDrop) {
-        const r = (nextQueue[0] + 1) * 16 + 8;
+        const nextLevel = nextQueue[0];
+        const r = (nextLevel + 1) * 12 + 8;
+        const img = faceImages[nextLevel];
+
+        // ガイド線
         if (isDragging) {
             ctx.setLineDash([5, 8]); ctx.beginPath(); ctx.moveTo(currentX, 65); ctx.lineTo(currentX, HEIGHT); ctx.strokeStyle = "rgba(255,255,255,0.2)"; ctx.stroke(); ctx.setLineDash([]);
         }
-        ctx.save(); ctx.translate(currentX, 65); ctx.rotate(previewAngle); ctx.font = `${r * 2.1}px Arial`; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillText(EMOJIS[nextQueue[0]], 0, 0); ctx.restore();
+
+        // 画像が読み込まれていれば描画
+        if (img && img.complete) {
+            // 絵文字の時と同じように、半径より少し大きく描画する
+            const size = r * 2.1;
+            ctx.save(); ctx.translate(currentX, 65); ctx.rotate(previewAngle);
+            // 画像を中心に描画 (drawImage(image, dx, dy, dw, dh))
+            ctx.drawImage(img, -size/2, -size/2, size, size);
+            ctx.restore();
+        }
     }
+
+    // b) 物理オブジェクトの描画
     Composite.allBodies(engine.world).forEach(b => {
-        if (b.emoji) {
+        if (b.label === "friend" || b.label === "obs") {
             ctx.save(); ctx.translate(b.position.x, b.position.y); ctx.rotate(b.angle);
-            ctx.font = `${b.radius * 2.1}px Arial`;
-            if(b.level === 6) { ctx.shadowColor = '#f1c40f'; ctx.shadowBlur = 15; }
-            ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillText(b.emoji, 0, 0); ctx.restore();
+            
+            // 画像の選択
+            const img = (b.label === "obs") ? obstacleImage : faceImages[b.level];
+
+            if (img && img.complete) {
+                const size = b.radius * 2.1;
+                // 王冠のエフェクト
+                if(b.label === "friend" && b.level === 7) { ctx.shadowColor = '#f1c40f'; ctx.shadowBlur = 15; }
+                // 画像を中心に描画
+                ctx.drawImage(img, -size/2, -size/2, size, size);
+            }
+            ctx.restore();
         }
     });
 });
@@ -237,7 +322,13 @@ function obstacleLoop() {
 }
 obstacleLoop();
 
-updateUI(); Render.run(render); Runner.run(Runner.create(), engine);
+// --- 5. 画像の読み込みが完了してからゲームを開始 ---
+preloadImages(() => {
+    updateUI();
+    Render.run(render);
+    Runner.run(Runner.create(), engine);
+});
+
 </script>
 </body>
 </html>
