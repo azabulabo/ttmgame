@@ -27,7 +27,42 @@
         .next-image { width: 100%; height: 100%; object-fit: contain; display: none; }
         
         .value { font-size: 24px; font-weight: bold; color: #fff; text-shadow: 0 0 8px #f1c40f; }
-        #game-over { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(0,0,0,0.95); color: white; padding: 40px; border-radius: 20px; text-align: center; display: none; z-index: 20; border: 3px solid #f1c40f; width: 75%; }
+        
+        /* ゲームオーバー画面の修正 */
+        #game-over { 
+            position: absolute; 
+            top: 50%; 
+            left: 50%; 
+            transform: translate(-50%, -50%); 
+            background: rgba(0,0,0,0.95); 
+            color: white; 
+            padding: 40px; 
+            border-radius: 20px; 
+            text-align: center; 
+            display: none; 
+            z-index: 100; /* 十分に大きくして最前面へ */
+            border: 3px solid #f1c40f; 
+            width: 75%; 
+            pointer-events: auto; /* クリックを確実に受け付ける */
+        }
+        
+        /* ボタン自体のスタイルを少し押しやすく */
+        #game-over button {
+            margin-top: 20px; 
+            padding: 15px 30px; 
+            border-radius: 30px; 
+            background: #f1c40f; 
+            border: none; 
+            font-weight: bold; 
+            font-size: 18px;
+            cursor: pointer; 
+            pointer-events: auto; /* ボタン単体でも念押し */
+            box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+        }
+        
+        #game-over button:active {
+            transform: scale(0.95); /* 押した感を出す */
+        }
         #new-record { color: #ffeb3b; font-weight: bold; font-size: 18px; display: none; margin-bottom: 10px; }
         #loading { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: #000; color: #fff; display: flex; justify-content: center; align-items: center; z-index: 30; }
     </style>
@@ -145,7 +180,7 @@ function updateUI() {
 }
 
 // ... (マウス・タッチイベント、衝突判定、デッドライン判定は前回と同じため省略/維持) ...
-const handleEnd = () => { if (!isDragging || isGameOver || !canDrop) return; isDragging = false; canDrop = false; spawn(currentX, 65, nextQueue.shift(), false, null, previewAngle); nextQueue.push(getNextLevel()); updateUI(); previewAngle = 0; setTimeout(() => { canDrop = true; }, 500); };
+const handleEnd = () => { if (isGameOver) return;if (!isDragging || !canDrop) return; isDragging = false; canDrop = false; spawn(currentX, 65, nextQueue.shift(), false, null, previewAngle); nextQueue.push(getNextLevel()); updateUI(); previewAngle = 0; setTimeout(() => { canDrop = true; }, 500); };
 function updateX(e) { const rect = render.canvas.getBoundingClientRect(); const clientX = (e.clientX !== undefined) ? e.clientX : (e.touches ? e.touches[0].clientX : currentX); const x = clientX - rect.left; currentX = Math.max(40, Math.min(WIDTH - 40, x)); previewAngle += (currentX - lastX) * 0.05; lastX = currentX; }
 window.addEventListener('mousedown', (e) => { if (isGameOver || !canDrop) return; isDragging = true; updateX(e); });
 window.addEventListener('mousemove', (e) => { if (!isDragging || isGameOver) return; updateX(e); });
