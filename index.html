@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>送別会スイカ - 調整版SE Edition</title>
+    <title>送別会スイカ - 完成版SE Edition</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
     <style>
         :root { --base-width: 375px; --base-height: 667px; }
@@ -33,7 +33,19 @@
         .next-label { position: absolute; top: 2px; right: 40px; font-size: 8px; color: #aaa; }
         .label { font-size: 10px; color: #bdc3c7; }
         .value { font-size: 26px; font-weight: bold; color: #fff; text-shadow: 0 0 8px #f1c40f; }
-        #deadline { position: absolute; top: 100px; width: 100%; height: 2px; background: rgba(231, 76, 60, 0.3); }
+        
+        /* デッドラインの動的演出 */
+        #deadline { 
+            position: absolute; top: 100px; width: 100%; height: 2px; 
+            background: #e74c3c; opacity: 0.3; transition: opacity 0.2s;
+        }
+        #deadline.danger { 
+            opacity: 1; 
+            box-shadow: 0 0 15px #ff0000;
+            animation: blink-red 0.3s infinite;
+        }
+        @keyframes blink-red { 0% { background: #ff0000; } 50% { background: #550000; } 100% { background: #ff0000; } }
+
         #game-over {
             position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
             background: rgba(0,0,0,0.95); color: white; padding: 40px;
@@ -58,12 +70,11 @@
         <h1 id="over-title">終了！</h1>
         <p>最終スコア</p>
         <div id="final-score" class="value" style="font-size: 40px;">0</div>
-        <button onclick="location.reload()" style="margin-top:20px; padding:10px 20px; border-radius: 20px; border:none; background:#f1c40f; font-weight:bold;">リトライ</button>
+        <button onclick="location.reload()" style="margin-top:20px; padding:10px 20px; border-radius: 20px; border:none; background:#f1c40f; font-weight:bold; cursor:pointer;">リトライ</button>
     </div>
 </div>
 
 <script>
-// --- 認証 ---
 const PASSWORD = "968";
 if (!sessionStorage.getItem("auth_ok")) {
     if (prompt("パスワードを入力 (968)") === PASSWORD) {
@@ -81,8 +92,8 @@ const OBSTACLE = "💣";
 
 let score = 0, timeLeft = 60, isGameOver = false;
 let nextQueue = [Math.floor(Math.random()*3), Math.floor(Math.random()*3)];
+let overLineStartTime = null; // ラインを超え始めた時間
 
-// 操作用
 let isDragging = false;
 let currentX = WIDTH / 2;
 let previewAngle = 0;
@@ -129,29 +140,9 @@ const getX = (e) => {
     return Math.max(30, Math.min(WIDTH - 30, clientX - rect.left));
 };
 
-const handleStart = (e) => {
-    if (isGameOver || timeLeft <= 0) return;
-    isDragging = true;
-    currentX = getX(e);
-    lastX = currentX;
-};
-
-const handleMove = (e) => {
-    if (!isDragging || isGameOver) return;
-    currentX = getX(e);
-    // 動かした分だけ回転させる
-    previewAngle += (currentX - lastX) * 0.05;
-    lastX = currentX;
-};
-
-const handleEnd = () => {
-    if (!isDragging || isGameOver) return;
-    isDragging = false;
-    spawn(currentX, 50, nextQueue.shift());
-    nextQueue.push(Math.floor(Math.random() * 3));
-    updateUI();
-    previewAngle = 0; // 次のプレビュー用にリセット
-};
+const handleStart = (e) => { if (isGameOver || timeLeft <= 0) return; isDragging = true; currentX = getX(e); lastX = currentX; };
+const handleMove = (e) => { if (!isDragging || isGameOver) return; currentX = getX(e); previewAngle += (currentX - lastX) * 0.05; lastX = currentX; };
+const handleEnd = () => { if (!isDragging || isGameOver) return; isDragging = false; spawn(currentX, 50, nextQueue.shift()); nextQueue.push(Math.floor(Math.random() * 3)); updateUI(); previewAngle = 0; };
 
 window.addEventListener('mousedown', handleStart);
 window.addEventListener('mousemove', handleMove);
@@ -177,16 +168,34 @@ Events.on(engine, 'collisionStart', (event) => {
     });
 });
 
+// --- 改良版ゲームオーバー判定 ---
 Events.on(engine, 'afterUpdate', () => {
     if (isGameOver) return;
     const bodies = Composite.allBodies(engine.world);
+    let isAnyOver = false;
+
     for (let body of bodies) {
-        if (!body.isStatic && body.position.y < LIMIT_Y && body.position.y > 60) {
-            if (Math.abs(body.velocity.y) < 0.1) {
-                endGame("OVER LINE!");
+        if (!body.isStatic && body.position.y > 60) {
+            // 顔の上端がラインを超えているかチェック
+            if (body.position.y - body.radius < LIMIT_Y) {
+                isAnyOver = true;
                 break;
             }
         }
+    }
+
+    const deadlineEl = document.getElementById('deadline');
+    if (isAnyOver) {
+        deadlineEl.classList.add('danger');
+        if (!overLineStartTime) overLineStartTime = Date.now();
+        
+        // 3秒（3000ms）経過したら終了
+        if (Date.now() - overLineStartTime > 3000) {
+            endGame("OVER LINE!");
+        }
+    } else {
+        deadlineEl.classList.remove('danger');
+        overLineStartTime = null; // リセット
     }
 });
 
@@ -208,22 +217,18 @@ Events.on(render, 'afterRender', () => {
         ctx.strokeStyle = "rgba(255,255,255,0.2)"; ctx.stroke();
         ctx.setLineDash([]);
         ctx.save();
-        ctx.translate(currentX, 50);
-        ctx.rotate(previewAngle);
+        ctx.translate(currentX, 50); ctx.rotate(previewAngle);
         ctx.font = `${radius * 2.1}px Arial`;
         ctx.textAlign = "center"; ctx.textBaseline = "middle";
-        ctx.fillText(EMOJIS[level], 0, 0);
-        ctx.restore();
+        ctx.fillText(EMOJIS[level], 0, 0); ctx.restore();
     }
     Composite.allBodies(engine.world).forEach(b => {
         if (b.emoji) {
             ctx.save();
-            ctx.translate(b.position.x, b.position.y);
-            ctx.rotate(b.angle);
+            ctx.translate(b.position.x, b.position.y); ctx.rotate(b.angle);
             ctx.font = `${b.radius * 2.1}px Arial`;
             ctx.textAlign = "center"; ctx.textBaseline = "middle";
-            ctx.fillText(b.emoji, 0, 0);
-            ctx.restore();
+            ctx.fillText(b.emoji, 0, 0); ctx.restore();
         }
     });
 });
@@ -235,11 +240,8 @@ const timerInterval = setInterval(() => {
     if (timeLeft <= 0) { clearInterval(timerInterval); endGame("TIME UP!"); }
 }, 1000);
 
-// --- オジャマ激化ロジック (10秒後から開始) ---
 function obstacleLoop() {
     if (isGameOver) return;
-    
-    // 最初の10秒（timeLeft 60~50）は落とさない
     if (timeLeft <= 50) {
         let delay = 3000, size = 20;
         if (timeLeft <= 10) { delay = 160; size = 20 + Math.random()*25; }
@@ -247,7 +249,6 @@ function obstacleLoop() {
         spawn(Math.random() * (WIDTH-60)+30, -50, 0, true, size);
         setTimeout(obstacleLoop, delay);
     } else {
-        // 10秒経つまで短いスパンでチェックし続ける
         setTimeout(obstacleLoop, 500);
     }
 }
