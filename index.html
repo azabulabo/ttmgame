@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>送別会スイカ - デッドライン復活版</title>
+    <title>送別会スイカ - デッドライン中心判定版</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
     <style>
         :root { --base-width: 375px; --base-height: 667px; }
@@ -14,16 +14,15 @@
         #score-box { position: absolute; top: 15px; left: 15px; }
         #timer-box { position: absolute; top: 15px; left: 50%; transform: translateX(-50%); text-align: center; }
         
-        /* レッドライン */
         #deadline { 
             position: absolute; top: 110px; width: 100%; height: 2px; 
             border-top: 2px dashed #e74c3c; opacity: 0.4; z-index: 5;
         }
         #deadline.danger { 
-            opacity: 1; border-top-style: solid; box-shadow: 0 0 10px #f00; 
-            animation: blink-red 0.3s infinite;
+            opacity: 1; border-top-style: solid; box-shadow: 0 0 15px #f00; 
+            animation: blink-red 0.2s infinite;
         }
-        @keyframes blink-red { 0% { opacity: 1; } 50% { opacity: 0.2; } 100% { opacity: 1; } }
+        @keyframes blink-red { 0% { background: rgba(231, 76, 60, 1); } 50% { background: rgba(231, 76, 60, 0.2); } 100% { background: rgba(231, 76, 60, 1); } }
 
         #next-container { position: absolute; top: 35px; right: 10px; width: 85px; height: 45px; background: rgba(255,255,255,0.1); border-radius: 20px; display: flex; align-items: center; justify-content: space-around; border: 1px solid rgba(255,255,255,0.2); }
         #next-label { position: absolute; top: 18px; right: 54px; color: #f1c40f; font-size: 10px; font-weight: bold; }
@@ -50,7 +49,7 @@
         </div>
     </div>
     <div id="special-effects"><div id="confetti">🎉</div></div>
-    <div id="game-over"><h1 id="over-title">終了！</h1><p id="over-reason">タイムアップ</p><div id="final-score" class="value" style="font-size:40px;">0</div><button onclick="location.reload()" style="margin-top:20px; padding:10px 20px; border-radius:20px; background:#f1c40f; border:none; font-weight:bold; cursor:pointer;">リトライ</button></div>
+    <div id="game-over"><h1 id="over-title">終了！</h1><p id="over-reason"></p><div id="final-score" class="value" style="font-size:40px;">0</div><button onclick="location.reload()" style="margin-top:20px; padding:10px 20px; border-radius:20px; background:#f1c40f; border:none; font-weight:bold; cursor:pointer;">リトライ</button></div>
 </div>
 
 <script>
@@ -102,8 +101,6 @@ function updateUI() {
     document.getElementById('score').innerText = score; 
 }
 
-const handleStart = (e) => { if (isGameOver || !canDrop) return; isDragging = true; updateX(e); };
-const handleMove = (e) => { if (!isDragging || isGameOver) return; updateX(e); };
 const handleEnd = () => { 
     if (!isDragging || isGameOver || !canDrop) return; 
     isDragging = false; 
@@ -112,7 +109,7 @@ const handleEnd = () => {
     nextQueue.push(Math.floor(Math.random() * 3)); 
     updateUI(); 
     previewAngle = 0;
-    setTimeout(() => { canDrop = true; }, 500); // 0.5秒クールダウン
+    setTimeout(() => { canDrop = true; }, 500); 
 };
 
 function updateX(e) { 
@@ -123,9 +120,11 @@ function updateX(e) {
     previewAngle += (currentX - lastX) * 0.05; lastX = currentX;
 }
 
-window.addEventListener('mousedown', handleStart); window.addEventListener('mousemove', handleMove); window.addEventListener('mouseup', handleEnd);
-window.addEventListener('touchstart', (e) => { e.preventDefault(); handleStart(e); }, {passive: false});
-window.addEventListener('touchmove', (e) => { e.preventDefault(); handleMove(e); }, {passive: false});
+window.addEventListener('mousedown', (e) => { if (isGameOver || !canDrop) return; isDragging = true; updateX(e); });
+window.addEventListener('mousemove', (e) => { if (!isDragging || isGameOver) return; updateX(e); });
+window.addEventListener('mouseup', handleEnd);
+window.addEventListener('touchstart', (e) => { e.preventDefault(); if (isGameOver || !canDrop) return; isDragging = true; updateX(e); }, {passive: false});
+window.addEventListener('touchmove', (e) => { e.preventDefault(); if (!isDragging || isGameOver) return; updateX(e); }, {passive: false});
 window.addEventListener('touchend', handleEnd);
 
 Events.on(engine, 'collisionStart', (event) => {
@@ -149,30 +148,25 @@ Events.on(engine, 'collisionStart', (event) => {
     });
 });
 
-// デッドライン判定
+// デッドライン判定：一番上の顔の中心をチェック
 Events.on(engine, 'afterUpdate', () => {
     if (isGameOver) return;
     const bodies = Composite.allBodies(engine.world);
-    let isAnyOver = false;
-
-    for (let b of bodies) {
-        if (!b.isStatic && b.label === "friend") {
-            // 生成直後の顔（y=65付近）を除外するため、ある程度下に落ちた実績があるかチェック
-            // 中心点がLIMIT_Yを超えているか
-            if (b.position.y < LIMIT_Y && b.position.y > 75) {
-                isAnyOver = true;
-                break;
-            }
+    
+    // オジャマと生成直後の顔(y<=75)を除いた中で、最もy座標が小さい（高い）顔を探す
+    let highestY = 999;
+    bodies.forEach(b => {
+        if (!b.isStatic && b.label === "friend" && b.position.y > 75) {
+            if (b.position.y < highestY) highestY = b.position.y;
         }
-    }
+    });
 
     const dl = document.getElementById('deadline');
-    if (isAnyOver) {
+    if (highestY < LIMIT_Y) {
         dl.classList.add('danger');
         if (!overLineStartTime) overLineStartTime = Date.now();
-        if (Date.now() - overLineStartTime > 3000) { 
-            endGame("デッドライン超過！");
-        }
+        const elapsed = (Date.now() - overLineStartTime) / 1000;
+        if (elapsed > 3) endGame("デッドライン超過！");
     } else {
         dl.classList.remove('danger');
         overLineStartTime = null;
@@ -188,6 +182,7 @@ function endGame(reason) {
 
 Events.on(render, 'afterRender', () => {
     const ctx = render.context;
+    // 待機中/ドラッグ中の顔
     if (!isGameOver && canDrop) {
         const r = (nextQueue[0] + 1) * 16 + 8;
         if (isDragging) {
@@ -195,6 +190,7 @@ Events.on(render, 'afterRender', () => {
         }
         ctx.save(); ctx.translate(currentX, 65); ctx.rotate(previewAngle); ctx.font = `${r * 2.1}px Arial`; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillText(EMOJIS[nextQueue[0]], 0, 0); ctx.restore();
     }
+    // 全オブジェクトの描画
     Composite.allBodies(engine.world).forEach(b => {
         if (b.emoji) {
             ctx.save(); ctx.translate(b.position.x, b.position.y); ctx.rotate(b.angle);
@@ -205,7 +201,7 @@ Events.on(render, 'afterRender', () => {
     });
 });
 
-const timerInterval = setInterval(() => { 
+setInterval(() => { 
     if (!isGameOver && timeLeft > 0) { 
         timeLeft--; 
         document.getElementById('timer').innerText = timeLeft; 
