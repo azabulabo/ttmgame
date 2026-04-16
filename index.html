@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>つとむゲーム - DINO FINAL -</title>
+    <title>つとむゲーム</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
     <style>
         :root { --base-width: 375px; --base-height: 667px; }
@@ -13,12 +13,12 @@
         /* スタート画面 */
         #start-screen {
             position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0,0,0,0.8); display: flex; flex-direction: column;
+            background: rgba(0,0,0,0.85); display: flex; flex-direction: column;
             justify-content: center; align-items: center; z-index: 50; cursor: pointer;
         }
         #start-msg {
-            color: #2ecc71; font-size: 28px; font-weight: bold;
-            text-shadow: 0 0 10px #2ecc71; animation: pulse 1.5s infinite;
+            color: #2ecc71; font-size: 32px; font-weight: bold;
+            text-shadow: 0 0 15px #2ecc71; animation: pulse 1.5s infinite;
         }
         @keyframes pulse {
             0% { transform: scale(1); opacity: 1; }
@@ -54,7 +54,7 @@
     
     <div id="start-screen">
         <div id="start-msg">タップしてスタート</div>
-        <p style="color: #aaa; font-size: 12px; margin-top: 15px;">進化の果て、王冠を目指せ！</p>
+        <p style="color: #aaa; font-size: 14px; margin-top: 20px;">青山のことを忘れないでください！</p>
     </div>
 
     <div id="deadline"></div>
@@ -179,11 +179,22 @@ function updateUI() {
 }
 
 const handleEnd = () => { 
-    if (!gameStarted) { startGame(); return; }
-    if (isGameOver || !isDragging || !canDrop) return; 
-    isDragging = false; canDrop = false; 
+    if (isGameOver || !canDrop) return; 
+
+    // ゲーム未開始なら開始させる
+    if (!gameStarted) {
+        startGame();
+        // gameStartedがtrueになったので、そのまま下のドロップ処理へ進む
+    }
+
+    if (!isDragging) return;
+
+    isDragging = false; 
+    canDrop = false; 
     spawn(currentX, 65, nextQueue.shift(), false, null, previewAngle); 
-    nextQueue.push(getNextLevel()); updateUI(); previewAngle = 0; 
+    nextQueue.push(getNextLevel()); 
+    updateUI(); 
+    previewAngle = 0; 
     setTimeout(() => { canDrop = true; }, 500); 
 };
 
@@ -247,7 +258,8 @@ function endGame(reason, isClear) {
 
 Events.on(render, 'afterRender', () => {
     const ctx = render.context;
-    if (!isGameOver && canDrop && gameStarted) {
+    // 開始前でもガイドラインとプレビューは表示しておく（位置を決めてからタップできるように）
+    if (!isGameOver && canDrop) {
         const lv = nextQueue[0]; const r = (lv + 1) * 15 + 10; const size = r * 2.1;
         if (isDragging) { ctx.setLineDash([5, 8]); ctx.beginPath(); ctx.moveTo(currentX, 65); ctx.lineTo(currentX, HEIGHT); ctx.strokeStyle = "rgba(46, 204, 113, 0.2)"; ctx.stroke(); ctx.setLineDash([]); }
         ctx.save(); ctx.translate(currentX, 65); ctx.rotate(previewAngle);
