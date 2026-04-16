@@ -3,42 +3,26 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>つとむゲーム - DINO EDITION -</title>
+    <title>つとむゲーム - DINO FINAL -</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
     <style>
         :root { --base-width: 375px; --base-height: 667px; }
         body { margin: 0; padding: 0; background: #000; display: flex; justify-content: center; align-items: center; height: 100vh; overflow: hidden; font-family: sans-serif; touch-action: none; }
         #game-container { position: relative; width: var(--base-width); height: var(--base-height); background: radial-gradient(circle, #1a2a1a 0%, #051005 100%); overflow: hidden; }
-        
         #ui-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 10; }
         #score-box { position: absolute; top: 15px; left: 15px; }
         #best-box { position: absolute; top: 15px; left: 100px; }
         #timer-box { position: absolute; top: 15px; left: 55%; transform: translateX(-50%); text-align: center; }
-        
         #deadline { position: absolute; top: 110px; width: 100%; height: 2px; border-top: 2px dashed #e74c3c; opacity: 0.4; z-index: 5; }
         #deadline.danger { opacity: 1; border-top-style: solid; box-shadow: 0 0 15px #f00; animation: blink-red 0.2s infinite; }
         @keyframes blink-red { 0% { background: rgba(231, 76, 60, 1); } 50% { background: rgba(231, 76, 60, 0.2); } 100% { background: rgba(231, 76, 60, 1); } }
-
         #next-container { position: absolute; top: 35px; right: 10px; width: 85px; height: 45px; background: rgba(255,255,255,0.1); border-radius: 20px; display: flex; align-items: center; justify-content: space-around; border: 1px solid rgba(255,255,255,0.2); }
         #next-label { position: absolute; top: 18px; right: 52px; color: #2ecc71; font-size: 10px; font-weight: bold; }
-        
         .next-item { width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; font-size: 20px; }
         .next-image { width: 100%; height: 100%; object-fit: contain; display: none; }
-        
         .value { font-size: 24px; font-weight: bold; color: #fff; text-shadow: 0 0 8px #2ecc71; }
-        
-        #game-over { 
-            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); 
-            background: rgba(0,20,0,0.95); color: white; padding: 40px; border-radius: 20px; 
-            text-align: center; display: none; z-index: 1000; border: 3px solid #2ecc71; width: 75%; 
-            pointer-events: auto;
-        }
-        #game-over button {
-            margin-top: 20px; padding: 15px 30px; border-radius: 30px; 
-            background: #2ecc71; border: none; font-weight: bold; font-size: 18px;
-            color: #000; cursor: pointer; box-shadow: 0 4px 10px rgba(0,0,0,0.3);
-        }
-        #game-over button:active { transform: scale(0.95); }
+        #game-over { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(0,20,0,0.95); color: white; padding: 40px; border-radius: 20px; text-align: center; display: none; z-index: 1000; border: 3px solid #2ecc71; width: 75%; pointer-events: auto; }
+        #game-over button { margin-top: 20px; padding: 15px 30px; border-radius: 30px; background: #2ecc71; border: none; font-weight: bold; font-size: 18px; color: #000; cursor: pointer; box-shadow: 0 4px 10px rgba(0,0,0,0.3); }
         #new-record { color: #ffeb3b; font-weight: bold; font-size: 18px; display: none; margin-bottom: 10px; }
         #loading { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: #000; color: #fff; display: flex; justify-content: center; align-items: center; z-index: 30; }
     </style>
@@ -57,23 +41,27 @@
             <div id="n2-box" class="next-item" style="opacity: 0.3;"><img id="n2-img" class="next-image"><span id="n2-emoji"></span></div>
         </div>
     </div>
-    <div id="special-effects" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 15; display: none;"><div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 100px; animation: party 1.5s ease-out forwards;">🦕</div></div>
+    <div id="special-effects" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 15; display: none;"><div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 100px; animation: party 1.5s ease-out forwards;">🦖👑✨</div></div>
     <div id="game-over">
         <div id="new-record">✨ NEW RECORD ✨</div>
-        <h1 id="over-title" style="margin-top:0;">絶滅！</h1>
+        <h1 id="over-title" style="margin-top:0;">終了</h1>
         <p id="over-reason" style="font-size:14px; color:#ccc;"></p>
         <div id="final-score" class="value" style="font-size:40px;">0</div>
-        <button id="retry-btn">時代をやり直す</button>
+        <button id="retry-btn" onclick="location.reload()">再挑戦</button>
     </div>
 </div>
 
 <script>
 // --- 設定 ---
-const EMOJIS = ["🥚", "🦴", "🌿", "🦕", "🦖", "🌋", "☄️", "👑"];
+const EMOJIS = ["🥚", "🦴", "🌿", "🦕", "🦖", "👑"]; // 6段階
 const FACE_IMAGE_SOURCES = EMOJIS.map((_, i) => `images/face_${i}.png`);
-// オジャマ画像を13種類設定
 const OBSTACLE_IMAGE_SOURCES = Array.from({length: 13}, (_, i) => `images/obs_${i}.png`);
 const PASSWORD = "968";
+
+// 音声設定
+const bgm = new Audio('bgm.mp3');
+bgm.loop = false;
+let isBgmStarted = false;
 
 if (!sessionStorage.getItem("auth_ok")) {
     const input = prompt("パスワード (968)");
@@ -96,17 +84,22 @@ let isDragging = false, currentX = WIDTH / 2, previewAngle = 0, lastX = WIDTH / 
 const engine = Engine.create({ enableSleeping: false });
 const render = Render.create({ element: document.getElementById('game-container'), engine: engine, options: { width: WIDTH, height: HEIGHT, wireframes: false, background: 'transparent' } });
 
+function startBGM() {
+    if (!isBgmStarted) {
+        bgm.play().catch(e => console.log("Audio play blocked"));
+        isBgmStarted = true;
+    }
+}
+
 function preloadImages(callback) {
     let loadedCount = 0;
     const total = FACE_IMAGE_SOURCES.length + OBSTACLE_IMAGE_SOURCES.length;
     const checkDone = () => { loadedCount++; if (loadedCount === total) { document.getElementById('loading').style.display = 'none'; callback(); } };
-
     FACE_IMAGE_SOURCES.forEach((src, i) => {
         const img = new Image(); img.src = src;
         img.onload = () => { faceImages[i] = img; faceImageReady[i] = true; checkDone(); };
         img.onerror = () => { faceImageReady[i] = false; checkDone(); }; 
     });
-
     OBSTACLE_IMAGE_SOURCES.forEach((src, i) => {
         const img = new Image(); img.src = src;
         img.onload = () => { obstacleImages[i] = img; obstacleImageReady[i] = true; checkDone(); };
@@ -121,8 +114,7 @@ World.add(engine.world, [
 ]);
 
 function spawn(x, y, level, isObstacle = false, sizeOverride = null, angle = 0) {
-    const radius = isObstacle ? (sizeOverride || 20) : (level + 1) * 12 + 8;
-    // オジャマの場合はランダムなインデックスを保持させる
+    const radius = isObstacle ? (sizeOverride || 20) : (level + 1) * 15 + 10;
     const obsIndex = isObstacle ? Math.floor(Math.random() * 13) : 0;
     const body = Bodies.circle(x, y, radius, { 
         restitution: 0.3, friction: 0.1, 
@@ -149,6 +141,7 @@ function updateUI() {
 
 const handleEnd = () => { 
     if (isGameOver || !isDragging || !canDrop) return; 
+    startBGM();
     isDragging = false; canDrop = false; 
     spawn(currentX, 65, nextQueue.shift(), false, null, previewAngle); 
     nextQueue.push(getNextLevel()); updateUI(); previewAngle = 0; 
@@ -178,8 +171,13 @@ Events.on(engine, 'collisionStart', (event) => {
             const ny = (bodyA.position.y + bodyB.position.y) / 2;
             const level = bodyA.level;
             World.remove(engine.world, [bodyA, bodyB]);
-            if (level < 7) { spawn(nx, ny, level + 1); score += (level + 2) * 20; }
-            else { score += 5000; document.getElementById('special-effects').style.display = 'block'; setTimeout(() => { document.getElementById('special-effects').style.display = 'none'; }, 1500); }
+            if (level < 5) { // 最大段階（5）未満なら進化
+                spawn(nx, ny, level + 1); score += (level + 2) * 50; 
+            } else { // 👑同士が合体したら消滅＆クリア演出
+                score += 10000;
+                document.getElementById('special-effects').style.display = 'block';
+                setTimeout(() => { document.getElementById('special-effects').style.display = 'none'; }, 2000);
+            }
             document.getElementById('score').innerText = score;
         }
     });
@@ -189,33 +187,32 @@ Events.on(engine, 'afterUpdate', () => {
     if (isGameOver) return;
     const bodies = Composite.allBodies(engine.world);
     let highestY = 999;
-    bodies.forEach(b => { 
-        if (!b.isStatic && b.position.y > 80) { 
-            if (b.position.y < highestY) highestY = b.position.y; 
-        } 
-    });
+    bodies.forEach(b => { if (!b.isStatic && b.position.y > 80) { if (b.position.y < highestY) highestY = b.position.y; } });
     const dl = document.getElementById('deadline');
     if (highestY < LIMIT_Y) {
         dl.classList.add('danger');
         if (!overLineStartTime) overLineStartTime = Date.now();
-        if ((Date.now() - overLineStartTime) / 1000 > 3) endGame("デッドライン超過！");
+        if ((Date.now() - overLineStartTime) / 1000 > 3) endGame("デッドライン超過！", false);
     } else { dl.classList.remove('danger'); overLineStartTime = null; }
 });
 
-function endGame(reason) {
+function endGame(reason, isClear) {
+    if (isGameOver) return;
     isGameOver = true;
+    if (!isClear) {
+        bgm.pause(); // 失敗・時間切れ時は停止
+        bgm.currentTime = 0;
+    }
     if (score > highScore) { highScore = score; localStorage.setItem('suika_high_score', highScore); document.getElementById('new-record').style.display = 'block'; }
     document.getElementById('game-over').style.display = 'block';
     document.getElementById('over-reason').innerText = reason;
     document.getElementById('final-score').innerText = score;
 }
 
-document.getElementById('retry-btn').addEventListener('click', () => { location.reload(); });
-
 Events.on(render, 'afterRender', () => {
     const ctx = render.context;
     if (!isGameOver && canDrop) {
-        const lv = nextQueue[0]; const r = (lv + 1) * 12 + 8; const size = r * 2.1;
+        const lv = nextQueue[0]; const r = (lv + 1) * 15 + 10; const size = r * 2.1;
         if (isDragging) { ctx.setLineDash([5, 8]); ctx.beginPath(); ctx.moveTo(currentX, 65); ctx.lineTo(currentX, HEIGHT); ctx.strokeStyle = "rgba(46, 204, 113, 0.2)"; ctx.stroke(); ctx.setLineDash([]); }
         ctx.save(); ctx.translate(currentX, 65); ctx.rotate(previewAngle);
         if (faceImageReady[lv]) { ctx.drawImage(faceImages[lv], -size/2, -size/2, size, size); }
@@ -229,7 +226,7 @@ Events.on(render, 'afterRender', () => {
                 if (obstacleImageReady[b.obsIndex]) ctx.drawImage(obstacleImages[b.obsIndex], -size/2, -size/2, size, size);
                 else { ctx.font = `${size}px Arial`; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillText("💣", 0, 0); }
             } else {
-                if (b.level === 7) { ctx.shadowColor = '#2ecc71'; ctx.shadowBlur = 15; }
+                if (b.level === 5) { ctx.shadowColor = '#2ecc71'; ctx.shadowBlur = 15; }
                 if (faceImageReady[b.level]) ctx.drawImage(faceImages[b.level], -size/2, -size/2, size, size);
                 else { ctx.font = `${size}px Arial`; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillText(EMOJIS[b.level], 0, 0); }
             }
@@ -238,21 +235,14 @@ Events.on(render, 'afterRender', () => {
     });
 });
 
-setInterval(() => { if (!isGameOver && timeLeft > 0) { timeLeft--; document.getElementById('timer').innerText = timeLeft; if(timeLeft === 0) endGame("タイムアップ！"); } }, 1000);
+setInterval(() => { if (!isGameOver && timeLeft > 0) { timeLeft--; document.getElementById('timer').innerText = timeLeft; if(timeLeft === 0) endGame("タイムアップ！", false); } }, 1000);
 
 function obstacleLoop() {
     if (isGameOver) return;
-    // 発生間隔：後半戦(10秒以下)は360ms、中盤は1000ms、序盤は3000ms
     let d = timeLeft <= 10 ? 360 : (timeLeft <= 40 ? 1000 : 3000);
-    
-    // サイズ調整：経過時間(60 - timeLeft)に応じて最大50pxまで徐々にアップ
-    let baseSize = 20;
-    let growth = (60 - timeLeft) * 0.5; // 最大で+30px
-    let randomSize = baseSize + Math.random() * growth;
-
-    if (timeLeft <= 50) {
-        spawn(Math.random() * (WIDTH-80)+40, -50, 0, true, randomSize);
-    }
+    let growth = (60 - timeLeft) * 0.5;
+    let randomSize = 20 + Math.random() * growth;
+    if (timeLeft <= 50) spawn(Math.random() * (WIDTH-80)+40, -50, 0, true, randomSize);
     setTimeout(obstacleLoop, d);
 }
 
