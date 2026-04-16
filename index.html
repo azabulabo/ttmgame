@@ -9,27 +9,54 @@
         :root { --base-width: 375px; --base-height: 667px; }
         body { margin: 0; padding: 0; background: #000; display: flex; justify-content: center; align-items: center; height: 100vh; overflow: hidden; font-family: sans-serif; touch-action: none; }
         #game-container { position: relative; width: var(--base-width); height: var(--base-height); background: radial-gradient(circle, #1a2a1a 0%, #051005 100%); overflow: hidden; }
+        
+        /* スタート画面 */
+        #start-screen {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.8); display: flex; flex-direction: column;
+            justify-content: center; align-items: center; z-index: 50; cursor: pointer;
+        }
+        #start-msg {
+            color: #2ecc71; font-size: 28px; font-weight: bold;
+            text-shadow: 0 0 10px #2ecc71; animation: pulse 1.5s infinite;
+        }
+        @keyframes pulse {
+            0% { transform: scale(1); opacity: 1; }
+            50% { transform: scale(1.05); opacity: 0.7; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+
         #ui-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 10; }
         #score-box { position: absolute; top: 15px; left: 15px; }
         #best-box { position: absolute; top: 15px; left: 100px; }
         #timer-box { position: absolute; top: 15px; left: 55%; transform: translateX(-50%); text-align: center; }
+        
         #deadline { position: absolute; top: 110px; width: 100%; height: 2px; border-top: 2px dashed #e74c3c; opacity: 0.4; z-index: 5; }
         #deadline.danger { opacity: 1; border-top-style: solid; box-shadow: 0 0 15px #f00; animation: blink-red 0.2s infinite; }
         @keyframes blink-red { 0% { background: rgba(231, 76, 60, 1); } 50% { background: rgba(231, 76, 60, 0.2); } 100% { background: rgba(231, 76, 60, 1); } }
+
         #next-container { position: absolute; top: 35px; right: 10px; width: 85px; height: 45px; background: rgba(255,255,255,0.1); border-radius: 20px; display: flex; align-items: center; justify-content: space-around; border: 1px solid rgba(255,255,255,0.2); }
         #next-label { position: absolute; top: 18px; right: 52px; color: #2ecc71; font-size: 10px; font-weight: bold; }
+        
         .next-item { width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; font-size: 20px; }
         .next-image { width: 100%; height: 100%; object-fit: contain; display: none; }
         .value { font-size: 24px; font-weight: bold; color: #fff; text-shadow: 0 0 8px #2ecc71; }
+        
         #game-over { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(0,20,0,0.95); color: white; padding: 40px; border-radius: 20px; text-align: center; display: none; z-index: 1000; border: 3px solid #2ecc71; width: 75%; pointer-events: auto; }
         #game-over button { margin-top: 20px; padding: 15px 30px; border-radius: 30px; background: #2ecc71; border: none; font-weight: bold; font-size: 18px; color: #000; cursor: pointer; box-shadow: 0 4px 10px rgba(0,0,0,0.3); }
         #new-record { color: #ffeb3b; font-weight: bold; font-size: 18px; display: none; margin-bottom: 10px; }
-        #loading { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: #000; color: #fff; display: flex; justify-content: center; align-items: center; z-index: 30; }
+        #loading { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: #000; color: #fff; display: flex; justify-content: center; align-items: center; z-index: 100; }
     </style>
 </head>
 <body>
 <div id="game-container">
     <div id="loading">DINO LOADING...</div>
+    
+    <div id="start-screen">
+        <div id="start-msg">タップしてスタート</div>
+        <p style="color: #aaa; font-size: 12px; margin-top: 15px;">進化の果て、王冠を目指せ！</p>
+    </div>
+
     <div id="deadline"></div>
     <div id="ui-layer">
         <div id="score-box"><div style="font-size:10px; color:#aaa;">SCORE</div><div id="score" class="value">0</div></div>
@@ -53,15 +80,13 @@
 
 <script>
 // --- 設定 ---
-const EMOJIS = ["🥚", "🦴", "🌿", "🦕", "🦖", "👑"]; // 6段階
+const EMOJIS = ["🥚", "🦴", "🌿", "🦕", "🦖", "👑"]; 
 const FACE_IMAGE_SOURCES = EMOJIS.map((_, i) => `images/face_${i}.png`);
 const OBSTACLE_IMAGE_SOURCES = Array.from({length: 13}, (_, i) => `images/obs_${i}.png`);
 const PASSWORD = "968";
 
-// 音声設定
-const bgm = new Audio('bgm.mp3');
+const bgm = new Audio('bgm.mp3'); 
 bgm.loop = false;
-let isBgmStarted = false;
 
 if (!sessionStorage.getItem("auth_ok")) {
     const input = prompt("パスワード (968)");
@@ -76,7 +101,7 @@ const faceImages = [], faceImageReady = [];
 const obstacleImages = [], obstacleImageReady = [];
 
 let score = 0, highScore = parseInt(localStorage.getItem('suika_high_score')) || 0;
-let timeLeft = 60, isGameOver = false;
+let timeLeft = 60, isGameOver = false, gameStarted = false;
 const getNextLevel = () => Math.floor(Math.random() * 3);
 let nextQueue = [0, 0, 0].map(() => getNextLevel());
 let isDragging = false, currentX = WIDTH / 2, previewAngle = 0, lastX = WIDTH / 2, canDrop = true, overLineStartTime = null;
@@ -84,11 +109,25 @@ let isDragging = false, currentX = WIDTH / 2, previewAngle = 0, lastX = WIDTH / 
 const engine = Engine.create({ enableSleeping: false });
 const render = Render.create({ element: document.getElementById('game-container'), engine: engine, options: { width: WIDTH, height: HEIGHT, wireframes: false, background: 'transparent' } });
 
-function startBGM() {
-    if (!isBgmStarted) {
-        bgm.play().catch(e => console.log("Audio play blocked"));
-        isBgmStarted = true;
-    }
+// ゲーム開始処理
+function startGame() {
+    if (gameStarted) return;
+    gameStarted = true;
+    document.getElementById('start-screen').style.display = 'none';
+    bgm.play().catch(() => {});
+    
+    // タイマースタート
+    const timerInterval = setInterval(() => {
+        if (isGameOver) { clearInterval(timerInterval); return; }
+        if (timeLeft > 0) {
+            timeLeft--;
+            document.getElementById('timer').innerText = timeLeft;
+            if(timeLeft === 0) endGame("タイムアップ！", false);
+        }
+    }, 1000);
+
+    // オジャマ開始
+    obstacleLoop();
 }
 
 function preloadImages(callback) {
@@ -140,8 +179,8 @@ function updateUI() {
 }
 
 const handleEnd = () => { 
+    if (!gameStarted) { startGame(); return; }
     if (isGameOver || !isDragging || !canDrop) return; 
-    startBGM();
     isDragging = false; canDrop = false; 
     spawn(currentX, 65, nextQueue.shift(), false, null, previewAngle); 
     nextQueue.push(getNextLevel()); updateUI(); previewAngle = 0; 
@@ -171,9 +210,9 @@ Events.on(engine, 'collisionStart', (event) => {
             const ny = (bodyA.position.y + bodyB.position.y) / 2;
             const level = bodyA.level;
             World.remove(engine.world, [bodyA, bodyB]);
-            if (level < 5) { // 最大段階（5）未満なら進化
+            if (level < 5) { 
                 spawn(nx, ny, level + 1); score += (level + 2) * 50; 
-            } else { // 👑同士が合体したら消滅＆クリア演出
+            } else { 
                 score += 10000;
                 document.getElementById('special-effects').style.display = 'block';
                 setTimeout(() => { document.getElementById('special-effects').style.display = 'none'; }, 2000);
@@ -184,7 +223,7 @@ Events.on(engine, 'collisionStart', (event) => {
 });
 
 Events.on(engine, 'afterUpdate', () => {
-    if (isGameOver) return;
+    if (isGameOver || !gameStarted) return;
     const bodies = Composite.allBodies(engine.world);
     let highestY = 999;
     bodies.forEach(b => { if (!b.isStatic && b.position.y > 80) { if (b.position.y < highestY) highestY = b.position.y; } });
@@ -199,10 +238,7 @@ Events.on(engine, 'afterUpdate', () => {
 function endGame(reason, isClear) {
     if (isGameOver) return;
     isGameOver = true;
-    if (!isClear) {
-        bgm.pause(); // 失敗・時間切れ時は停止
-        bgm.currentTime = 0;
-    }
+    if (!isClear) { bgm.pause(); bgm.currentTime = 0; }
     if (score > highScore) { highScore = score; localStorage.setItem('suika_high_score', highScore); document.getElementById('new-record').style.display = 'block'; }
     document.getElementById('game-over').style.display = 'block';
     document.getElementById('over-reason').innerText = reason;
@@ -211,7 +247,7 @@ function endGame(reason, isClear) {
 
 Events.on(render, 'afterRender', () => {
     const ctx = render.context;
-    if (!isGameOver && canDrop) {
+    if (!isGameOver && canDrop && gameStarted) {
         const lv = nextQueue[0]; const r = (lv + 1) * 15 + 10; const size = r * 2.1;
         if (isDragging) { ctx.setLineDash([5, 8]); ctx.beginPath(); ctx.moveTo(currentX, 65); ctx.lineTo(currentX, HEIGHT); ctx.strokeStyle = "rgba(46, 204, 113, 0.2)"; ctx.stroke(); ctx.setLineDash([]); }
         ctx.save(); ctx.translate(currentX, 65); ctx.rotate(previewAngle);
@@ -235,10 +271,8 @@ Events.on(render, 'afterRender', () => {
     });
 });
 
-setInterval(() => { if (!isGameOver && timeLeft > 0) { timeLeft--; document.getElementById('timer').innerText = timeLeft; if(timeLeft === 0) endGame("タイムアップ！", false); } }, 1000);
-
 function obstacleLoop() {
-    if (isGameOver) return;
+    if (isGameOver || !gameStarted) return;
     let d = timeLeft <= 10 ? 360 : (timeLeft <= 40 ? 1000 : 3000);
     let growth = (60 - timeLeft) * 0.5;
     let randomSize = 20 + Math.random() * growth;
@@ -246,7 +280,7 @@ function obstacleLoop() {
     setTimeout(obstacleLoop, d);
 }
 
-preloadImages(() => { updateUI(); Render.run(render); Runner.run(Runner.create(), engine); obstacleLoop(); });
+preloadImages(() => { updateUI(); Render.run(render); Runner.run(Runner.create(), engine); });
 </script>
 </body>
 </html>
