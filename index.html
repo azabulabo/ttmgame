@@ -25,15 +25,19 @@
         #score-box { position: absolute; top: 15px; left: 15px; }
         #best-box { position: absolute; top: 15px; left: 100px; }
         #timer-box { position: absolute; top: 15px; left: 55%; transform: translateX(-50%); text-align: center; }
+        
         #deadline { position: absolute; top: 110px; width: 100%; height: 2px; border-top: 2px dashed #e74c3c; opacity: 0.4; z-index: 5; }
-        #deadline.danger { opacity: 1; border-top-style: solid; box-shadow: 0 0 15px #f00; animation: blink-red 0.2s infinite; }
+        #deadline.danger { 
+            opacity: 1; 
+            border-top: 2px solid #f00; 
+            box-shadow: 0 0 15px #f00; 
+            animation: blink-red 0.4s infinite; 
+        }
+        @keyframes blink-red { 0% { opacity: 1; } 50% { opacity: 0.2; } 100% { opacity: 1; } }
         
         #next-container { position: absolute; top: 35px; right: 10px; width: 85px; height: 45px; background: rgba(255,255,255,0.1); border-radius: 20px; display: flex; align-items: center; justify-content: space-around; border: 1px solid rgba(255,255,255,0.2); }
-        .next-item { width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; font-size: 20px; }
-        .next-image { 
-            width: 100%; height: 100%; object-fit: contain; 
-            image-rendering: pixelated; display: none; 
-        }
+        .next-item { width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; }
+        .next-image { width: 100%; height: 100%; object-fit: contain; image-rendering: pixelated; display: none; }
         .value { font-size: 24px; font-weight: bold; color: #fff; text-shadow: 0 0 8px #2ecc71; }
         
         #game-over { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(0,20,0,0.95); color: white; padding: 40px; border-radius: 20px; text-align: center; display: none; z-index: 1000; border: 3px solid #2ecc71; width: 75%; pointer-events: auto; }
@@ -73,21 +77,27 @@
 </div>
 
 <script>
-// --- 音源の設定 ---
+// --- 音源の設定とエラーハンドリング ---
+const audioStatus = { bgm: true, rotate: true, merge: true, disappear: true };
 const bgm = new Audio('bgm.mp3');
-bgm.loop = false;
 const seRotate = new Audio('rotate.mp3');
-const seTap = new Audio('tap.mp3');
 const seMerge = new Audio('merge.mp3');
 const seDisappear = new Audio('disappear.mp3');
 
-// SEを再生する関数（重なりを許容するためクローンを作成）
-function playSE(audio) {
+[
+    {a: bgm, id: 'bgm'}, {a: seRotate, id: 'rotate'}, 
+    {a: seMerge, id: 'merge'}, {a: seDisappear, id: 'disappear'}
+].forEach(item => {
+    item.a.addEventListener('error', () => { audioStatus[item.id] = false; });
+});
+
+function playSE(audio, id) {
+    if (!audioStatus[id]) return;
     const clone = audio.cloneNode();
     clone.play().catch(()=>{});
 }
 
-const EMOJIS = ["🥚", "🦴", "🌿", "🦕", "🦖", "👑"]; 
+const EMOJIS = ["🥚", "🦴", "🌿", "🦕", "REX", "👑"]; 
 const FACE_IMAGE_SOURCES = EMOJIS.map((_, i) => `images/face_${i}.png`);
 const OBSTACLE_IMAGE_SOURCES = Array.from({length: 13}, (_, i) => `images/obs_${i}.png`);
 const PASSWORD = "968";
@@ -105,9 +115,9 @@ let score = 0, highScore = parseInt(localStorage.getItem('suika_high_score')) ||
 let timeLeft = 60, isGameOver = false, gameStarted = false;
 let nextQueue = [0, 0, 0].map(() => Math.floor(Math.random() * 3));
 
-// 回転制御用
-let isDragging = false, currentX = WIDTH/2, currentAngle = 0, lastX = WIDTH/2, lastSoundX = WIDTH/2;
-let canDrop = true, overLineStartTime = null, particles = [];
+let isDragging = false, currentX = WIDTH/2, currentAngle = 0, lastSoundX = WIDTH/2;
+let canDrop = true, overLineStartTime = null;
+let particles = []; // 爆発や合体演出用の粒子
 
 const engine = Engine.create();
 const render = Render.create({ element: document.getElementById('game-container'), engine: engine, options: { width: WIDTH, height: HEIGHT, wireframes: false, background: 'transparent' } });
@@ -136,17 +146,18 @@ function spawn(x, y, level, isObstacle = false, sizeOverride = null) {
         render: { visible: false } 
     });
     body.radius = radius;
-    // 落とした瞬間に回転を加える
     if (!isObstacle) Body.setAngle(body, currentAngle);
     World.add(engine.world, body);
     return body;
 }
 
-function createConfetti(x, y) {
-    for (let i = 0; i < 50; i++) {
+// パーティクル生成（エフェクト）
+function createEffect(x, y, color, count = 20, speed = 10) {
+    for (let i = 0; i < count; i++) {
         particles.push({
-            x, y, vx: (Math.random()-0.5)*15, vy: (Math.random()-0.5)*15-5,
-            size: Math.random()*8+4, color: `hsl(${Math.random()*360}, 80%, 60%)`, life: 1.0
+            x, y, vx: (Math.random()-0.5)*speed, vy: (Math.random()-0.5)*speed - (speed/4),
+            size: Math.random()*6+2, color: color, life: 1.0, 
+            decay: Math.random()*0.02 + 0.02
         });
     }
 }
@@ -165,23 +176,19 @@ const handleEnd = () => {
     if (!gameStarted) { 
         gameStarted = true; 
         document.getElementById('start-screen').style.display = 'none'; 
-        bgm.play().catch(()=>{}); 
+        if (audioStatus.bgm) bgm.play().catch(()=>{}); 
         obstacleLoop(); 
     }
     if (!isDragging) return;
     isDragging = false; canDrop = false;
-    
-    // タップ音
-    playSE(seTap);
-
     spawn(currentX, 65, nextQueue.shift());
     nextQueue.push(Math.floor(Math.random() * 3));
     updateUI();
-    // 回転をリセット
     currentAngle = 0;
     setTimeout(() => { canDrop = true; }, 500);
 };
 
+// 合体処理
 Events.on(engine, 'collisionStart', (event) => {
     event.pairs.forEach(pair => {
         const { bodyA, bodyB } = pair;
@@ -193,8 +200,9 @@ Events.on(engine, 'collisionStart', (event) => {
             bodyA.isDeleting = bodyB.isDeleting = true;
             World.remove(engine.world, [bodyA, bodyB]);
             
-            // 合体音
-            playSE(seMerge);
+            playSE(seMerge, 'merge');
+            // 合体演出：白いピクセル粒子を出す
+            createEffect(nx, ny, "#ffffff", 15, 8);
 
             if (level < 4) { 
                 spawn(nx, ny, level + 1); 
@@ -203,13 +211,12 @@ Events.on(engine, 'collisionStart', (event) => {
             else {
                 const crown = spawn(nx, ny - 30, 5); crown.isFinal = true;
                 Body.setVelocity(crown, { x: (Math.random()-0.5)*15, y: -25 });
-                Body.setAngularVelocity(crown, (Math.random()-0.5)*0.3);
                 if (!isGameOver) score += 5000;
                 
                 setTimeout(() => {
-                    // 消滅・爆発音
-                    playSE(seDisappear);
-                    createConfetti(crown.position.x, crown.position.y);
+                    playSE(seDisappear, 'disappear');
+                    // 王冠爆発演出：カラフルな粒子
+                    createEffect(crown.position.x, crown.position.y, `hsl(${Math.random()*360}, 80%, 60%)`, 60, 20);
                     World.remove(engine.world, crown);
                     Composite.allBodies(engine.world).forEach(b => {
                         if (b.label === "obs" && Vector.magnitude(Vector.sub(b.position, crown.position)) < 250) {
@@ -226,22 +233,31 @@ Events.on(engine, 'collisionStart', (event) => {
 
 Events.on(engine, 'afterUpdate', () => {
     if (isGameOver || !gameStarted) return;
-    particles.forEach((p, i) => { p.x += p.vx; p.y += p.vy; p.vy += 0.2; p.life -= 0.02; if(p.life <= 0) particles.splice(i, 1); });
+    // パーティクルの更新
+    particles.forEach((p, i) => { 
+        p.x += p.vx; p.y += p.vy; p.vy += 0.15; p.life -= p.decay; 
+        if(p.life <= 0) particles.splice(i, 1); 
+    });
+
     const bodies = Composite.allBodies(engine.world);
     let highestY = 999;
     bodies.forEach(b => { if (!b.isStatic && b.position.y > 80 && !b.isFinal) highestY = Math.min(highestY, b.position.y); });
+    
     const dl = document.getElementById('deadline');
     if (highestY < LIMIT_Y) {
         dl.classList.add('danger');
         if (!overLineStartTime) overLineStartTime = Date.now();
         if ((Date.now() - overLineStartTime) / 1000 > 3) endGame("絶滅しました...", false);
-    } else { dl.classList.remove('danger'); overLineStartTime = null; }
+    } else { 
+        dl.classList.remove('danger'); 
+        overLineStartTime = null; 
+    }
 });
 
 function endGame(reason, isTimeUp) {
     if (isGameOver) return;
     isGameOver = true;
-    if (!isTimeUp) { bgm.pause(); bgm.currentTime = 0; }
+    if (audioStatus.bgm) { bgm.pause(); bgm.currentTime = 0; }
     if (score > highScore) { highScore = score; localStorage.setItem('suika_high_score', highScore); document.getElementById('new-record').style.display='block'; }
     document.getElementById('game-over').style.display='block';
     document.getElementById('over-reason').innerText = reason;
@@ -251,19 +267,28 @@ function endGame(reason, isTimeUp) {
 
 Events.on(render, 'afterRender', () => {
     const ctx = render.context;
-    particles.forEach(p => { ctx.fillStyle = p.color; ctx.globalAlpha = p.life; ctx.fillRect(p.x, p.y, p.size, p.size); });
+
+    // パーティクルの描画（ピクセル四角形）
+    particles.forEach(p => { 
+        ctx.fillStyle = p.color; 
+        ctx.globalAlpha = p.life; 
+        ctx.fillRect(p.x - p.size/2, p.y - p.size/2, p.size, p.size); 
+    });
     ctx.globalAlpha = 1.0;
     
-    // プレビュー描画（回転対応）
+    // プレビュー描画
     if (!isGameOver && canDrop) {
         const lv = nextQueue[0];
         const radius = (lv + 1) * 16 + 10;
         const targetSize = radius * 2.2;
         const img = faceImages[lv];
-        if (isDragging) { ctx.setLineDash([5, 5]); ctx.beginPath(); ctx.moveTo(currentX, 65); ctx.lineTo(currentX, HEIGHT); ctx.strokeStyle = "rgba(46,204,113,0.3)"; ctx.stroke(); ctx.setLineDash([]); }
+        if (isDragging) { 
+            ctx.setLineDash([5, 5]); ctx.beginPath(); ctx.moveTo(currentX, 65); ctx.lineTo(currentX, HEIGHT); 
+            ctx.strokeStyle = "rgba(46,204,113,0.3)"; ctx.stroke(); ctx.setLineDash([]); 
+        }
         ctx.save();
         ctx.translate(currentX, 65);
-        ctx.rotate(currentAngle); // 回転適用
+        ctx.rotate(currentAngle);
         if (img && img.complete) {
             const aspect = img.naturalWidth / img.naturalHeight;
             let dw = aspect > 1 ? targetSize : targetSize * aspect;
@@ -273,7 +298,7 @@ Events.on(render, 'afterRender', () => {
         ctx.restore();
     }
     
-    // 物理オブジェクト描画
+    // オブジェクト描画
     Composite.allBodies(engine.world).forEach(b => {
         if (b.label === "friend" || b.label === "obs") {
             const targetSize = b.radius * 2.2;
@@ -307,15 +332,11 @@ function updateX(e) {
     const rect = render.canvas.getBoundingClientRect(); 
     const clientX = e.clientX ?? e.touches?.[0].clientX ?? currentX;
     const newX = Math.max(30, Math.min(WIDTH-30, clientX - rect.left));
-    
-    // 移動距離に応じて回転角を変更 (1px移動 = 0.05ラジアン程度)
     const diff = newX - currentX;
     currentAngle += diff * 0.05;
     currentX = newX;
-
-    // カラカラ音の判定（一定距離動くたびに再生）
     if (Math.abs(currentX - lastSoundX) > 15) {
-        playSE(seRotate);
+        playSE(seRotate, 'rotate');
         lastSoundX = currentX;
     }
 }
