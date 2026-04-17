@@ -27,8 +27,23 @@
         .next-image { width: 100%; height: 100%; object-fit: contain; display: none; }
         .value { font-size: 24px; font-weight: bold; color: #fff; text-shadow: 0 0 8px #2ecc71; }
         
+        /* ゲームオーバー画面 */
         #game-over { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(0,20,0,0.95); color: white; padding: 40px; border-radius: 20px; text-align: center; display: none; z-index: 1000; border: 3px solid #2ecc71; width: 75%; pointer-events: auto; }
-        #game-over button { margin-top: 20px; padding: 15px 30px; border-radius: 30px; background: #2ecc71; border: none; font-weight: bold; font-size: 18px; color: #000; cursor: pointer; }
+        
+        /* リトライボタンの遅延表示用スタイル */
+        #retry-btn { 
+            display: none; /* 最初は隠す */
+            margin-top: 25px; padding: 15px 40px; border-radius: 30px; 
+            background: #2ecc71; border: none; font-weight: bold; font-size: 18px; 
+            color: #000; cursor: pointer;
+            box-shadow: 0 4px 15px rgba(46, 204, 113, 0.4);
+            animation: fadeInBtn 0.8s ease-out forwards;
+        }
+        @keyframes fadeInBtn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
         #loading { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: #000; color: #fff; display: flex; justify-content: center; align-items: center; z-index: 100; }
     </style>
 </head>
@@ -48,10 +63,10 @@
     </div>
     <div id="game-over">
         <div id="new-record" style="display:none; color:#ffeb3b;">✨ NEW RECORD ✨</div>
-        <h1 id="over-title">終了</h1>
-        <p id="over-reason"></p>
-        <div id="final-score" class="value" style="font-size:40px;">0</div>
-        <button onclick="location.reload()">もう一度</button>
+        <h1 id="over-title" style="margin:0 0 10px 0;">終了</h1>
+        <p id="over-reason" style="margin-bottom:20px; color:#ccc;"></p>
+        <div id="final-score" class="value" style="font-size:48px;">0</div>
+        <button id="retry-btn" onclick="location.reload()">もう一度遊ぶ</button>
     </div>
 </div>
 
@@ -60,10 +75,8 @@ const EMOJIS = ["🥚", "🦴", "🌿", "🦕", "🦖", "👑"];
 const FACE_IMAGE_SOURCES = EMOJIS.map((_, i) => `images/face_${i}.png`);
 const OBSTACLE_IMAGE_SOURCES = Array.from({length: 13}, (_, i) => `images/obs_${i}.png`);
 const PASSWORD = "968";
-
-// BGM設定
 const bgm = new Audio('bgm.mp3');
-bgm.loop = false; // ループなし
+bgm.loop = false;
 
 if (!sessionStorage.getItem("auth_ok")) {
     const input = prompt("パスワード");
@@ -83,7 +96,6 @@ let particles = [];
 const engine = Engine.create();
 const render = Render.create({ element: document.getElementById('game-container'), engine: engine, options: { width: WIDTH, height: HEIGHT, wireframes: false, background: 'transparent' } });
 
-// 合体判定を激甘にする
 engine.world.gravity.scale *= 1.5; 
 
 function preloadImages(callback) {
@@ -103,8 +115,7 @@ World.add(engine.world, [
 function spawn(x, y, level, isObstacle = false, sizeOverride = null) {
     const radius = isObstacle ? (sizeOverride || 20) : (level + 1) * 16 + 10;
     const body = Bodies.circle(x, y, radius, { 
-        restitution: 0.4, friction: 0.1, 
-        slop: 0, // 判定の遊びをなくして激甘にする
+        restitution: 0.4, friction: 0.1, slop: 0,
         label: isObstacle ? "obs" : "friend", 
         level: level, obsIndex: Math.floor(Math.random() * 13),
         render: { visible: false } 
@@ -117,12 +128,8 @@ function spawn(x, y, level, isObstacle = false, sizeOverride = null) {
 function createConfetti(x, y) {
     for (let i = 0; i < 50; i++) {
         particles.push({
-            x, y,
-            vx: (Math.random() - 0.5) * 15,
-            vy: (Math.random() - 0.5) * 15 - 5,
-            size: Math.random() * 8 + 4,
-            color: `hsl(${Math.random() * 360}, 80%, 60%)`,
-            life: 1.0
+            x, y, vx: (Math.random()-0.5)*15, vy: (Math.random()-0.5)*15-5,
+            size: Math.random()*8+4, color: `hsl(${Math.random()*360}, 80%, 60%)`, life: 1.0
         });
     }
 }
@@ -139,12 +146,7 @@ function updateUI() {
 
 const handleEnd = () => {
     if (isGameOver || !canDrop) return;
-    if (!gameStarted) { 
-        gameStarted = true; 
-        document.getElementById('start-screen').style.display = 'none'; 
-        bgm.play().catch(()=>{}); 
-        obstacleLoop(); 
-    }
+    if (!gameStarted) { gameStarted = true; document.getElementById('start-screen').style.display = 'none'; bgm.play().catch(()=>{}); obstacleLoop(); }
     if (!isDragging) return;
     isDragging = false; canDrop = false;
     spawn(currentX, 65, nextQueue.shift());
@@ -159,30 +161,22 @@ Events.on(engine, 'collisionStart', (event) => {
         if (bodyA.label === "friend" && bodyB.label === "friend" && bodyA.level === bodyB.level && !bodyA.isDeleting && !bodyB.isDeleting) {
             const level = bodyA.level;
             if (level >= 5) return;
-
             const nx = (bodyA.position.x + bodyB.position.x) / 2;
             const ny = (bodyA.position.y + bodyB.position.y) / 2;
             bodyA.isDeleting = bodyB.isDeleting = true;
             World.remove(engine.world, [bodyA, bodyB]);
-
-            if (level < 4) {
-                spawn(nx, ny, level + 1);
-                score += (level + 1) * 100;
-            } else {
-                // 王冠👑生成（暴れ回る物理設定）
-                const crown = spawn(nx, ny - 30, 5);
-                crown.isFinal = true;
-                Body.setVelocity(crown, { x: (Math.random() - 0.5) * 15, y: -25 });
-                Body.setAngularVelocity(crown, (Math.random() - 0.5) * 0.3);
+            if (level < 4) { spawn(nx, ny, level + 1); score += (level + 1) * 100; }
+            else {
+                const crown = spawn(nx, ny - 30, 5); crown.isFinal = true;
+                Body.setVelocity(crown, { x: (Math.random()-0.5)*15, y: -25 });
+                Body.setAngularVelocity(crown, (Math.random()-0.5)*0.3);
                 score += 5000;
-                
                 setTimeout(() => {
                     createConfetti(crown.position.x, crown.position.y);
                     World.remove(engine.world, crown);
                     Composite.allBodies(engine.world).forEach(b => {
                         if (b.label === "obs" && Vector.magnitude(Vector.sub(b.position, crown.position)) < 250) {
-                            World.remove(engine.world, b);
-                            score += 500;
+                            World.remove(engine.world, b); score += 500;
                         }
                     });
                 }, 1500);
@@ -195,7 +189,6 @@ Events.on(engine, 'collisionStart', (event) => {
 Events.on(engine, 'afterUpdate', () => {
     if (isGameOver || !gameStarted) return;
     particles.forEach((p, i) => { p.x += p.vx; p.y += p.vy; p.vy += 0.2; p.life -= 0.02; if(p.life <= 0) particles.splice(i, 1); });
-    
     const bodies = Composite.allBodies(engine.world);
     let highestY = 999;
     bodies.forEach(b => { if (!b.isStatic && b.position.y > 80 && !b.isFinal) highestY = Math.min(highestY, b.position.y); });
@@ -207,28 +200,28 @@ Events.on(engine, 'afterUpdate', () => {
     } else { dl.classList.remove('danger'); overLineStartTime = null; }
 });
 
-// ゲーム終了処理
 function endGame(reason, isTimeUp) {
     if (isGameOver) return;
     isGameOver = true;
-
-    // タイムアップ以外（ライン越え）ならBGMを止める
-    if (!isTimeUp) {
-        bgm.pause();
-        bgm.currentTime = 0;
-    }
-
+    if (!isTimeUp) { bgm.pause(); bgm.currentTime = 0; }
     if (score > highScore) { highScore = score; localStorage.setItem('suika_high_score', highScore); document.getElementById('new-record').style.display='block'; }
+    
+    // UI表示
     document.getElementById('game-over').style.display='block';
     document.getElementById('over-reason').innerText = reason;
     document.getElementById('final-score').innerText = score;
+
+    // 【重要】ボタンを1.5秒遅らせて表示
+    setTimeout(() => {
+        const btn = document.getElementById('retry-btn');
+        btn.style.display = 'inline-block';
+    }, 1500);
 }
 
 Events.on(render, 'afterRender', () => {
     const ctx = render.context;
     particles.forEach(p => { ctx.fillStyle = p.color; ctx.globalAlpha = p.life; ctx.fillRect(p.x, p.y, p.size, p.size); });
     ctx.globalAlpha = 1.0;
-
     if (!isGameOver && canDrop) {
         const lv = nextQueue[0], r = (lv + 1) * 16 + 10, size = r * 2.2;
         if (isDragging) { ctx.setLineDash([5, 5]); ctx.beginPath(); ctx.moveTo(currentX, 65); ctx.lineTo(currentX, HEIGHT); ctx.strokeStyle = "rgba(46,204,113,0.3)"; ctx.stroke(); ctx.setLineDash([]); }
@@ -261,14 +254,7 @@ function obstacleLoop() {
     setTimeout(obstacleLoop, d);
 }
 
-// 1秒ごとのタイマー更新
-setInterval(() => { 
-    if(gameStarted && !isGameOver && timeLeft > 0) { 
-        timeLeft--; 
-        document.getElementById('timer').innerText = timeLeft; 
-        if(timeLeft===0) endGame("タイムアップ！", true); // true: BGMを止めない
-    } 
-}, 1000);
+setInterval(() => { if(gameStarted && !isGameOver && timeLeft > 0) { timeLeft--; document.getElementById('timer').innerText = timeLeft; if(timeLeft===0) endGame("タイムアップ！", true); } }, 1000);
 
 function updateX(e) { 
     const rect = render.canvas.getBoundingClientRect(); 
