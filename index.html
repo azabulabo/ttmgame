@@ -80,6 +80,7 @@
 // --- 音源の設定とエラーハンドリング ---
 const audioStatus = { bgm: true, rotate: true, merge: true, disappear: true };
 const bgm = new Audio('bgm.mp3');
+bgm.loop = false;
 const seRotate = new Audio('rotate.mp3');
 const seMerge = new Audio('merge.mp3');
 const seDisappear = new Audio('disappear.mp3');
@@ -99,7 +100,8 @@ function playSE(audio, id) {
 
 const EMOJIS = ["🥚", "🦴", "🌿", "🦕", "REX", "👑"]; 
 const FACE_IMAGE_SOURCES = EMOJIS.map((_, i) => `images/face_${i}.png`);
-const OBSTACLE_IMAGE_SOURCES = Array.from({length: 13}, (_, i) => `images/obs_${i}.png`);
+// 【修正】オジャマ画像をobs_10までの11種類に変更
+const OBSTACLE_IMAGE_SOURCES = Array.from({length: 11}, (_, i) => `images/obs_${i}.png`);
 const PASSWORD = "968";
 
 if (!sessionStorage.getItem("auth_ok")) {
@@ -121,6 +123,7 @@ let particles = []; // 爆発や合体演出用の粒子
 
 const engine = Engine.create();
 const render = Render.create({ element: document.getElementById('game-container'), engine: engine, options: { width: WIDTH, height: HEIGHT, wireframes: false, background: 'transparent' } });
+// 合体判定を激甘にする
 engine.world.gravity.scale *= 1.5; 
 
 function preloadImages(callback) {
@@ -142,7 +145,9 @@ function spawn(x, y, level, isObstacle = false, sizeOverride = null) {
     const body = Bodies.circle(x, y, radius, { 
         restitution: 0.4, friction: 0.1, slop: 0,
         label: isObstacle ? "obs" : "friend", 
-        level: level, obsIndex: Math.floor(Math.random() * 13),
+        level: level, 
+        // 【修正】オジャマのランダム範囲を配列長に合わせる
+        obsIndex: Math.floor(Math.random() * OBSTACLE_IMAGE_SOURCES.length),
         render: { visible: false } 
     });
     body.radius = radius;
@@ -209,8 +214,13 @@ Events.on(engine, 'collisionStart', (event) => {
                 if (!isGameOver) score += (level + 1) * 100;
             }
             else {
+                // 王冠👑生成（暴れ回る物理設定）
                 const crown = spawn(nx, ny - 30, 5); crown.isFinal = true;
-                Body.setVelocity(crown, { x: (Math.random()-0.5)*15, y: -25 });
+                
+                // 【修正】暴れさせる物理挙動に、左右ランダムな回転（角速度）を追加
+                Body.setVelocity(crown, { x: (Math.random() - 0.5) * 15, y: -25 });
+                Body.setAngularVelocity(crown, (Math.random() - 0.5) * 0.2); // 左右どちらかにランダムに少し回転
+                
                 if (!isGameOver) score += 5000;
                 
                 setTimeout(() => {
