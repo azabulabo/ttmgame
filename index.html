@@ -35,7 +35,7 @@
 <body>
 <div id="game-container">
     <div id="loading">DINO LOADING...</div>
-    <div id="start-screen"><div id="start-msg">タップしてスタート</div><p style="color: #aaa; margin-top:20px;">王冠を爆発させろ！</p></div>
+    <div id="start-screen"><div id="start-msg">タップしてスタート</div><p style="color: #aaa; margin-top:20px;">暴れる王冠を爆発させろ！</p></div>
     <div id="deadline"></div>
     <div id="ui-layer">
         <div id="score-box"><div style="font-size:10px; color:#aaa;">SCORE</div><div id="score" class="value">0</div></div>
@@ -68,7 +68,7 @@ if (!sessionStorage.getItem("auth_ok")) {
     else { document.body.innerHTML = "Access Denied"; throw new Error(); }
 }
 
-const { Engine, Render, Runner, World, Bodies, Events, Composite, Vector } = Matter;
+const { Engine, Render, Runner, World, Bodies, Events, Composite, Vector, Body } = Matter;
 const WIDTH = 375, HEIGHT = 667, LIMIT_Y = 110;
 const faceImages = [], faceImageReady = [], obstacleImages = [], obstacleImageReady = [];
 let score = 0, highScore = parseInt(localStorage.getItem('suika_high_score')) || 0;
@@ -80,6 +80,9 @@ let particles = []; // 紙吹雪用
 const engine = Engine.create();
 const render = Render.create({ element: document.getElementById('game-container'), engine: engine, options: { width: WIDTH, height: HEIGHT, wireframes: false, background: 'transparent' } });
 
+// 合体判定を甘くし、サクサク落とすための物理設定
+engine.world.gravity.scale *= 1.5; 
+
 function preloadImages(callback) {
     let loaded = 0;
     const total = FACE_IMAGE_SOURCES.length + OBSTACLE_IMAGE_SOURCES.length;
@@ -89,7 +92,7 @@ function preloadImages(callback) {
 }
 
 World.add(engine.world, [
-    Bodies.rectangle(WIDTH/2, HEIGHT + 25, WIDTH, 50, { isStatic: true }),
+    Bodies.rectangle(WIDTH/2, HEIGHT + 25, WIDTH, 50, { isStatic: true, friction: 0.5 }),
     Bodies.rectangle(-15, HEIGHT/2, 30, HEIGHT, { isStatic: true }),
     Bodies.rectangle(WIDTH + 15, HEIGHT/2, 30, HEIGHT, { isStatic: true })
 ]);
@@ -98,6 +101,8 @@ function spawn(x, y, level, isObstacle = false, sizeOverride = null) {
     const radius = isObstacle ? (sizeOverride || 20) : (level + 1) * 16 + 10;
     const body = Bodies.circle(x, y, radius, { 
         restitution: 0.4, friction: 0.1, 
+        // 判定を激甘にするため許容誤差(slop)を0にする
+        slop: 0,
         label: isObstacle ? "obs" : "friend", 
         level: level, obsIndex: Math.floor(Math.random() * 13),
         render: { visible: false } 
@@ -141,13 +146,13 @@ const handleEnd = () => {
     setTimeout(() => { canDrop = true; }, 500);
 };
 
-// 合体処理 (判定を甘くするため collisionActive または距離チェック)
+// 合体処理 (slop:0により、接触した瞬間にStartイベントが跳ねる)
 Events.on(engine, 'collisionStart', (event) => {
     event.pairs.forEach(pair => {
         const { bodyA, bodyB } = pair;
         if (bodyA.label === "friend" && bodyB.label === "friend" && bodyA.level === bodyB.level && !bodyA.isDeleting && !bodyB.isDeleting) {
             const level = bodyA.level;
-            if (level >= 5) return; // 👑同士は想定外（消滅済みのため）
+            if (level >= 5) return; // 👑同士は判定しない
 
             const nx = (bodyA.position.x + bodyB.position.x) / 2;
             const ny = (bodyA.position.y + bodyB.position.y) / 2;
@@ -159,23 +164,31 @@ Events.on(engine, 'collisionStart', (event) => {
                 score += (level + 1) * 100;
             } else {
                 // 🦖(4) + 🦖(4) = 👑(5) 生成
-                const crown = spawn(nx, ny, 5);
-                crown.isStatic = true; // その場に固定
+                // 暴れさせるため、少し高い位置に生成
+                const crown = spawn(nx, ny - 30, 5);
+                // 👑はゲームオーバー判定から除外するため（クリアオブジェクト）
                 crown.isFinal = true;
+                
+                // 【物理エンジン対応】ド派手に跳ね返らせて暴れさせる
+                // 上方向への強いベクトルと、ランダムな横移動・回転を加える
+                Body.setVelocity(crown, { x: (Math.random() - 0.5) * 15, y: -25 });
+                Body.setAngularVelocity(crown, (Math.random() - 0.5) * 0.3);
+                
                 score += 5000;
                 
-                // 1秒後に爆発
+                // 暴れる時間を確保してから爆発（1.5秒後）
                 setTimeout(() => {
+                    // 暴れた先の現在位置で爆発
                     createConfetti(crown.position.x, crown.position.y);
                     World.remove(engine.world, crown);
                     // 周囲のオジャマを吹き飛ばす
                     Composite.allBodies(engine.world).forEach(b => {
-                        if (b.label === "obs" && Vector.magnitude(Vector.sub(b.position, crown.position)) < 200) {
+                        if (b.label === "obs" && Vector.magnitude(Vector.sub(b.position, crown.position)) < 250) {
                             World.remove(engine.world, b);
                             score += 500;
                         }
                     });
-                }, 1000);
+                }, 1500);
             }
             document.getElementById('score').innerText = score;
         }
@@ -188,6 +201,7 @@ Events.on(engine, 'afterUpdate', () => {
     
     const bodies = Composite.allBodies(engine.world);
     let highestY = 999;
+    // isFinal（👑）は判定対象外。物理で動いてラインを越えてもセーフ
     bodies.forEach(b => { if (!b.isStatic && b.position.y > 80 && !b.isFinal) highestY = Math.min(highestY, b.position.y); });
     const dl = document.getElementById('deadline');
     if (highestY < LIMIT_Y) {
@@ -222,7 +236,11 @@ Events.on(render, 'afterRender', () => {
     Composite.allBodies(engine.world).forEach(b => {
         if (b.label === "friend" || b.label === "obs") {
             const size = b.radius * 2.2; ctx.save(); ctx.translate(b.position.x, b.position.y); ctx.rotate(b.angle);
-            if (b.isFinal) { ctx.shadowColor = '#fff'; ctx.shadowBlur = 20 + Math.sin(Date.now()/100)*10; } // 👑の輝き
+            if (b.isFinal) { 
+                // 👑の発光演出を強化
+                ctx.shadowColor = '#fff'; 
+                ctx.shadowBlur = 30 + Math.sin(Date.now()/100)*15; 
+            } 
             if (b.label === "obs") {
                 if (obstacleImageReady[b.obsIndex]) ctx.drawImage(obstacleImages[b.obsIndex], -size/2, -size/2, size, size);
                 else { ctx.font=`${size}px Arial`; ctx.fillText("💣", 0, 0); }
@@ -253,8 +271,8 @@ function updateX(e) {
 window.addEventListener('mousedown', (e) => { if(!isGameOver && canDrop) { isDragging = true; updateX(e); } });
 window.addEventListener('mousemove', (e) => { if(isDragging) updateX(e); });
 window.addEventListener('mouseup', handleEnd);
-window.addEventListener('touchstart', (e) => { if(!isGameOver && canDrop) { isDragging = true; updateX(e); } }, {passive:false});
-window.addEventListener('touchmove', (e) => { if(isDragging) updateX(e); }, {passive:false});
+window.addEventListener('touchstart', (e) => { if(!isGameOver && canDrop) { isDragging = true; updateX(e); } }, {passive: false});
+window.addEventListener('touchmove', (e) => { if(isDragging) updateX(e); }, {passive: false});
 window.addEventListener('touchend', handleEnd);
 
 preloadImages(() => { updateUI(); Render.run(render); Runner.run(Runner.create(), engine); });
