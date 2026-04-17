@@ -35,7 +35,7 @@
 <body>
 <div id="game-container">
     <div id="loading">DINO LOADING...</div>
-    <div id="start-screen"><div id="start-msg">タップしてスタート</div><p style="color: #aaa; margin-top:20px;">暴れる王冠を爆発させろ！</p></div>
+    <div id="start-screen"><div id="start-msg">タップしてスタート</div><p style="color: #aaa; margin-top:20px;">王冠を爆発させろ！</p></div>
     <div id="deadline"></div>
     <div id="ui-layer">
         <div id="score-box"><div style="font-size:10px; color:#aaa;">SCORE</div><div id="score" class="value">0</div></div>
@@ -60,7 +60,10 @@ const EMOJIS = ["🥚", "🦴", "🌿", "🦕", "🦖", "👑"];
 const FACE_IMAGE_SOURCES = EMOJIS.map((_, i) => `images/face_${i}.png`);
 const OBSTACLE_IMAGE_SOURCES = Array.from({length: 13}, (_, i) => `images/obs_${i}.png`);
 const PASSWORD = "968";
+
+// BGM設定
 const bgm = new Audio('bgm.mp3');
+bgm.loop = false; // ループなし
 
 if (!sessionStorage.getItem("auth_ok")) {
     const input = prompt("パスワード");
@@ -75,12 +78,12 @@ let score = 0, highScore = parseInt(localStorage.getItem('suika_high_score')) ||
 let timeLeft = 60, isGameOver = false, gameStarted = false;
 let nextQueue = [0, 0, 0].map(() => Math.floor(Math.random() * 3));
 let isDragging = false, currentX = WIDTH/2, previewAngle = 0, lastX = WIDTH/2, canDrop = true, overLineStartTime = null;
-let particles = []; // 紙吹雪用
+let particles = [];
 
 const engine = Engine.create();
 const render = Render.create({ element: document.getElementById('game-container'), engine: engine, options: { width: WIDTH, height: HEIGHT, wireframes: false, background: 'transparent' } });
 
-// 合体判定を甘くし、サクサク落とすための物理設定
+// 合体判定を激甘にする
 engine.world.gravity.scale *= 1.5; 
 
 function preloadImages(callback) {
@@ -101,8 +104,7 @@ function spawn(x, y, level, isObstacle = false, sizeOverride = null) {
     const radius = isObstacle ? (sizeOverride || 20) : (level + 1) * 16 + 10;
     const body = Bodies.circle(x, y, radius, { 
         restitution: 0.4, friction: 0.1, 
-        // 判定を激甘にするため許容誤差(slop)を0にする
-        slop: 0,
+        slop: 0, // 判定の遊びをなくして激甘にする
         label: isObstacle ? "obs" : "friend", 
         level: level, obsIndex: Math.floor(Math.random() * 13),
         render: { visible: false } 
@@ -137,7 +139,12 @@ function updateUI() {
 
 const handleEnd = () => {
     if (isGameOver || !canDrop) return;
-    if (!gameStarted) { gameStarted = true; document.getElementById('start-screen').style.display = 'none'; bgm.play().catch(()=>{}); obstacleLoop(); }
+    if (!gameStarted) { 
+        gameStarted = true; 
+        document.getElementById('start-screen').style.display = 'none'; 
+        bgm.play().catch(()=>{}); 
+        obstacleLoop(); 
+    }
     if (!isDragging) return;
     isDragging = false; canDrop = false;
     spawn(currentX, 65, nextQueue.shift());
@@ -146,13 +153,12 @@ const handleEnd = () => {
     setTimeout(() => { canDrop = true; }, 500);
 };
 
-// 合体処理 (slop:0により、接触した瞬間にStartイベントが跳ねる)
 Events.on(engine, 'collisionStart', (event) => {
     event.pairs.forEach(pair => {
         const { bodyA, bodyB } = pair;
         if (bodyA.label === "friend" && bodyB.label === "friend" && bodyA.level === bodyB.level && !bodyA.isDeleting && !bodyB.isDeleting) {
             const level = bodyA.level;
-            if (level >= 5) return; // 👑同士は判定しない
+            if (level >= 5) return;
 
             const nx = (bodyA.position.x + bodyB.position.x) / 2;
             const ny = (bodyA.position.y + bodyB.position.y) / 2;
@@ -163,25 +169,16 @@ Events.on(engine, 'collisionStart', (event) => {
                 spawn(nx, ny, level + 1);
                 score += (level + 1) * 100;
             } else {
-                // 🦖(4) + 🦖(4) = 👑(5) 生成
-                // 暴れさせるため、少し高い位置に生成
+                // 王冠👑生成（暴れ回る物理設定）
                 const crown = spawn(nx, ny - 30, 5);
-                // 👑はゲームオーバー判定から除外するため（クリアオブジェクト）
                 crown.isFinal = true;
-                
-                // 【物理エンジン対応】ド派手に跳ね返らせて暴れさせる
-                // 上方向への強いベクトルと、ランダムな横移動・回転を加える
                 Body.setVelocity(crown, { x: (Math.random() - 0.5) * 15, y: -25 });
                 Body.setAngularVelocity(crown, (Math.random() - 0.5) * 0.3);
-                
                 score += 5000;
                 
-                // 暴れる時間を確保してから爆発（1.5秒後）
                 setTimeout(() => {
-                    // 暴れた先の現在位置で爆発
                     createConfetti(crown.position.x, crown.position.y);
                     World.remove(engine.world, crown);
-                    // 周囲のオジャマを吹き飛ばす
                     Composite.allBodies(engine.world).forEach(b => {
                         if (b.label === "obs" && Vector.magnitude(Vector.sub(b.position, crown.position)) < 250) {
                             World.remove(engine.world, b);
@@ -201,18 +198,26 @@ Events.on(engine, 'afterUpdate', () => {
     
     const bodies = Composite.allBodies(engine.world);
     let highestY = 999;
-    // isFinal（👑）は判定対象外。物理で動いてラインを越えてもセーフ
     bodies.forEach(b => { if (!b.isStatic && b.position.y > 80 && !b.isFinal) highestY = Math.min(highestY, b.position.y); });
     const dl = document.getElementById('deadline');
     if (highestY < LIMIT_Y) {
         dl.classList.add('danger');
         if (!overLineStartTime) overLineStartTime = Date.now();
-        if ((Date.now() - overLineStartTime) / 1000 > 3) endGame("絶滅しました...");
+        if ((Date.now() - overLineStartTime) / 1000 > 3) endGame("絶滅しました...", false);
     } else { dl.classList.remove('danger'); overLineStartTime = null; }
 });
 
-function endGame(reason) {
-    isGameOver = true; bgm.pause();
+// ゲーム終了処理
+function endGame(reason, isTimeUp) {
+    if (isGameOver) return;
+    isGameOver = true;
+
+    // タイムアップ以外（ライン越え）ならBGMを止める
+    if (!isTimeUp) {
+        bgm.pause();
+        bgm.currentTime = 0;
+    }
+
     if (score > highScore) { highScore = score; localStorage.setItem('suika_high_score', highScore); document.getElementById('new-record').style.display='block'; }
     document.getElementById('game-over').style.display='block';
     document.getElementById('over-reason').innerText = reason;
@@ -221,7 +226,6 @@ function endGame(reason) {
 
 Events.on(render, 'afterRender', () => {
     const ctx = render.context;
-    // 紙吹雪描画
     particles.forEach(p => { ctx.fillStyle = p.color; ctx.globalAlpha = p.life; ctx.fillRect(p.x, p.y, p.size, p.size); });
     ctx.globalAlpha = 1.0;
 
@@ -236,11 +240,7 @@ Events.on(render, 'afterRender', () => {
     Composite.allBodies(engine.world).forEach(b => {
         if (b.label === "friend" || b.label === "obs") {
             const size = b.radius * 2.2; ctx.save(); ctx.translate(b.position.x, b.position.y); ctx.rotate(b.angle);
-            if (b.isFinal) { 
-                // 👑の発光演出を強化
-                ctx.shadowColor = '#fff'; 
-                ctx.shadowBlur = 30 + Math.sin(Date.now()/100)*15; 
-            } 
+            if (b.isFinal) { ctx.shadowColor = '#fff'; ctx.shadowBlur = 30 + Math.sin(Date.now()/100)*15; } 
             if (b.label === "obs") {
                 if (obstacleImageReady[b.obsIndex]) ctx.drawImage(obstacleImages[b.obsIndex], -size/2, -size/2, size, size);
                 else { ctx.font=`${size}px Arial`; ctx.fillText("💣", 0, 0); }
@@ -261,7 +261,14 @@ function obstacleLoop() {
     setTimeout(obstacleLoop, d);
 }
 
-setInterval(() => { if(gameStarted && !isGameOver && timeLeft > 0) { timeLeft--; document.getElementById('timer').innerText = timeLeft; if(timeLeft===0) endGame("タイムアップ！"); } }, 1000);
+// 1秒ごとのタイマー更新
+setInterval(() => { 
+    if(gameStarted && !isGameOver && timeLeft > 0) { 
+        timeLeft--; 
+        document.getElementById('timer').innerText = timeLeft; 
+        if(timeLeft===0) endGame("タイムアップ！", true); // true: BGMを止めない
+    } 
+}, 1000);
 
 function updateX(e) { 
     const rect = render.canvas.getBoundingClientRect(); 
