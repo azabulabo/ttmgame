@@ -55,7 +55,7 @@
     <div id="loading">DINO LOADING...</div>
     <div id="start-screen">
         <div id="start-msg">タップしてスタート</div>
-        <p style="color: #aaa; margin-top:20px;">青山のことを忘れないでください！</p>
+        <p style="color: #aaa; margin-top:20px;">青山のことを忘れないでください</p>
     </div>
     <div id="deadline"></div>
     <div id="ui-layer">
@@ -68,11 +68,11 @@
         </div>
     </div>
     <div id="game-over">
-        <div id="new-record" style="display:none; color:#ffeb3b;">✨ NEW RECORD ✨</div>
-        <h1 id="over-title" style="margin:0 0 10px 0;">終了</h1>
+        <h1 id="over-title" style="margin:0 0 10px 0;">おわり</h1>
         <p id="over-reason" style="margin-bottom:20px; color:#ccc;"></p>
+        <div id="new-record" style="display:none; color:#ffeb3b;">✨ NEW RECORD ✨</div>
         <div id="final-score" class="value" style="font-size:48px;">0</div>
-        <button id="retry-btn" onclick="location.reload()">もう一度遊ぶ</button>
+        <button id="retry-btn" onclick="location.reload()">もういちど！</button>
     </div>
 </div>
 
@@ -100,12 +100,11 @@ function playSE(audio, id) {
 
 const EMOJIS = ["🥚", "🦴", "🌿", "🦕", "REX", "👑"]; 
 const FACE_IMAGE_SOURCES = EMOJIS.map((_, i) => `images/face_${i}.png`);
-// 【修正】オジャマ画像をobs_10までの11種類に変更
 const OBSTACLE_IMAGE_SOURCES = Array.from({length: 11}, (_, i) => `images/obs_${i}.png`);
 const PASSWORD = "968";
 
 if (!sessionStorage.getItem("auth_ok")) {
-    const input = prompt("パスワード");
+    const input = prompt("パスワード（zoomと同じ）");
     if (input === PASSWORD) sessionStorage.setItem("auth_ok", "true");
     else { document.body.innerHTML = "Access Denied"; throw new Error(); }
 }
@@ -257,7 +256,7 @@ Events.on(engine, 'afterUpdate', () => {
     if (highestY < LIMIT_Y) {
         dl.classList.add('danger');
         if (!overLineStartTime) overLineStartTime = Date.now();
-        if ((Date.now() - overLineStartTime) / 1000 > 3) endGame("絶滅しました...", false);
+        if ((Date.now() - overLineStartTime) / 1000 > 3) endGame("いっぱいになった...", false);
     } else { 
         dl.classList.remove('danger'); 
         overLineStartTime = null; 
@@ -336,7 +335,7 @@ function obstacleLoop() {
     setTimeout(obstacleLoop, d);
 }
 
-setInterval(() => { if(gameStarted && !isGameOver && timeLeft > 0) { timeLeft--; document.getElementById('timer').innerText = timeLeft; if(timeLeft===0) endGame("タイムアップ！", true); } }, 1000);
+setInterval(() => { if(gameStarted && !isGameOver && timeLeft > 0) { timeLeft--; document.getElementById('timer').innerText = timeLeft; if(timeLeft===0) endGame("ゲームクリア！", true); } }, 1000);
 
 function updateX(e) { 
     const rect = render.canvas.getBoundingClientRect(); 
