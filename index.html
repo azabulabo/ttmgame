@@ -10,6 +10,14 @@
         body { margin: 0; padding: 0; background: #000; display: flex; justify-content: center; align-items: center; height: 100vh; overflow: hidden; font-family: sans-serif; touch-action: none; }
         #game-container { position: relative; width: var(--base-width); height: var(--base-height); background: radial-gradient(circle, #1a2a1a 0%, #051005 100%); overflow: hidden; }
         
+        /* 【ドット絵対策】キャンバス全体のニアレストネイバー設定 */
+        #game-container canvas {
+            image-rendering: pixelated;
+            image-rendering: crisp-edges;
+            image-rendering: -webkit-crisp-edges;
+            image-rendering: -moz-crisp-edges;
+        }
+
         #start-screen { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 50; cursor: pointer; }
         #start-msg { color: #2ecc71; font-size: 32px; font-weight: bold; text-shadow: 0 0 15px #2ecc71; animation: pulse 1.5s infinite; }
         @keyframes pulse { 0% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.05); opacity: 0.7; } 100% { transform: scale(1); opacity: 1; } }
@@ -24,7 +32,17 @@
         
         #next-container { position: absolute; top: 35px; right: 10px; width: 85px; height: 45px; background: rgba(255,255,255,0.1); border-radius: 20px; display: flex; align-items: center; justify-content: space-around; border: 1px solid rgba(255,255,255,0.2); }
         .next-item { width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; font-size: 20px; }
-        .next-image { width: 100%; height: 100%; object-fit: contain; display: none; }
+        /* 【ドット絵対策・縮尺維持】object-fit:containとニアレストネイバー設定 */
+        .next-image { 
+            width: 100%; 
+            height: 100%; 
+            object-fit: contain; /* アスペクト比維持 */
+            image-rendering: pixelated;
+            image-rendering: crisp-edges;
+            image-rendering: -webkit-crisp-edges;
+            image-rendering: -moz-crisp-edges;
+            display: none; 
+        }
         .value { font-size: 24px; font-weight: bold; color: #fff; text-shadow: 0 0 8px #2ecc71; }
         
         #game-over { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(0,20,0,0.95); color: white; padding: 40px; border-radius: 20px; text-align: center; display: none; z-index: 1000; border: 3px solid #2ecc71; width: 75%; pointer-events: auto; }
@@ -91,6 +109,8 @@ let particles = [];
 
 const engine = Engine.create();
 const render = Render.create({ element: document.getElementById('game-container'), engine: engine, options: { width: WIDTH, height: HEIGHT, wireframes: false, background: 'transparent' } });
+
+// 合体判定を激甘にする
 engine.world.gravity.scale *= 1.5; 
 
 function preloadImages(callback) {
@@ -231,24 +251,69 @@ Events.on(render, 'afterRender', () => {
     const ctx = render.context;
     particles.forEach(p => { ctx.fillStyle = p.color; ctx.globalAlpha = p.life; ctx.fillRect(p.x, p.y, p.size, p.size); });
     ctx.globalAlpha = 1.0;
+    
+    // 【ドット絵対策・縮尺維持】プレビュー画像の描画ロジック
     if (!isGameOver && canDrop) {
-        const lv = nextQueue[0], r = (lv + 1) * 16 + 10, size = r * 2.2;
+        const lv = nextQueue[0];
+        const radius = (lv + 1) * 16 + 10;
+        const targetSize = radius * 2.2; // ターゲットとなる「最大」サイズ
+        const img = faceImages[lv];
+
         if (isDragging) { ctx.setLineDash([5, 5]); ctx.beginPath(); ctx.moveTo(currentX, 65); ctx.lineTo(currentX, HEIGHT); ctx.strokeStyle = "rgba(46,204,113,0.3)"; ctx.stroke(); ctx.setLineDash([]); }
-        ctx.save(); ctx.translate(currentX, 65);
-        if (faceImageReady[lv]) ctx.drawImage(faceImages[lv], -size/2, -size/2, size, size);
-        else { ctx.font = `${size}px Arial`; ctx.textAlign="center"; ctx.textBaseline="middle"; ctx.fillText(EMOJIS[lv], 0, 0); }
+        
+        ctx.save();
+        ctx.translate(currentX, 65);
+
+        if (img && img.complete) {
+            // アスペクト比を維持して拡大
+            const originalAspectRatio = img.naturalWidth / img.naturalHeight;
+            let dw, dh;
+            if (originalAspectRatio > 1) {
+                // 横長
+                dw = targetSize;
+                dh = targetSize / originalAspectRatio;
+            } else if (originalAspectRatio < 1) {
+                // 縦長
+                dh = targetSize;
+                dw = targetSize * originalAspectRatio;
+            } else {
+                // 正方形
+                dw = targetSize;
+                dh = targetSize;
+            }
+            ctx.drawImage(img, -dw/2, -dh/2, dw, dh);
+        } else {
+            // 画像がない場合はテキストでアスペクト比計算なし
+            ctx.font = `${targetSize}px Arial`; ctx.textAlign="center"; ctx.textBaseline="middle"; ctx.fillText(EMOJIS[lv], 0, 0);
+        }
         ctx.restore();
     }
+    
+    // 【ドット絵対策・縮尺維持】物理オブジェクトの描画ロジック
     Composite.allBodies(engine.world).forEach(b => {
         if (b.label === "friend" || b.label === "obs") {
-            const size = b.radius * 2.2; ctx.save(); ctx.translate(b.position.x, b.position.y); ctx.rotate(b.angle);
+            const radius = b.radius;
+            const targetSize = radius * 2.2;
+            const img = (b.label === "obs") ? obstacleImages[b.obsIndex] : faceImages[b.level];
+
+            ctx.save();
+            ctx.translate(b.position.x, b.position.y);
+            ctx.rotate(b.angle);
+
             if (b.isFinal) { ctx.shadowColor = '#fff'; ctx.shadowBlur = 30 + Math.sin(Date.now()/100)*15; } 
-            if (b.label === "obs") {
-                if (obstacleImageReady[b.obsIndex]) ctx.drawImage(obstacleImages[b.obsIndex], -size/2, -size/2, size, size);
-                else { ctx.font=`${size}px Arial`; ctx.fillText("💣", 0, 0); }
+
+            if (img && img.complete) {
+                // アスペクト比を維持して拡大
+                const originalAspectRatio = img.naturalWidth / img.naturalHeight;
+                let dw, dh;
+                if (originalAspectRatio > 1) { dw = targetSize; dh = targetSize / originalAspectRatio; }
+                else if (originalAspectRatio < 1) { dh = targetSize; dw = targetSize * originalAspectRatio; }
+                else { dw = targetSize; dh = targetSize; }
+                ctx.drawImage(img, -dw/2, -dh/2, dw, dh);
             } else {
-                if (faceImageReady[b.level]) ctx.drawImage(faceImages[b.level], -size/2, -size/2, size, size);
-                else { ctx.font=`${size}px Arial`; ctx.textAlign="center"; ctx.textBaseline="middle"; ctx.fillText(EMOJIS[b.level], 0, 0); }
+                // 画像がない場合はテキストでそのまま
+                if (b.label === "obs") { ctx.font=`${targetSize}px Arial`; ctx.fillText("💣", 0, 0); }
+                else { ctx.font=`${targetSize}px Arial`; ctx.textAlign="center"; ctx.textBaseline="middle"; ctx.fillText(EMOJIS[b.level], 0, 0); }
             }
             ctx.restore();
         }
