@@ -104,7 +104,7 @@ const OBSTACLE_IMAGE_SOURCES = Array.from({length: 11}, (_, i) => `images/obs_${
 const PASSWORD = "968";
 
 if (!sessionStorage.getItem("auth_ok")) {
-    const input = prompt("パスワード（zoomと同じ）");
+    const input = prompt("パスワードを入力してください");
     if (input === PASSWORD) sessionStorage.setItem("auth_ok", "true");
     else { document.body.innerHTML = "Access Denied"; throw new Error(); }
 }
