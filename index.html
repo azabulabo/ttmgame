@@ -9,12 +9,11 @@
         :root { --base-width: 375px; --base-height: 667px; }
         body { margin: 0; padding: 0; background: #000; display: flex; justify-content: center; align-items: center; height: 100vh; overflow: hidden; font-family: sans-serif; touch-action: none; }
         
-        /* --- スタイル修正箇所 --- */
         #game-container { 
             position: relative; 
             width: var(--base-width); 
             height: var(--base-height); 
-            /* 背景画像を設定し、その上に上部を暗くするグラデーションを重ねてUIの視認性を確保 */
+            /* 背景画像とUI保護用グラデーション */
             background-image: 
                 linear-gradient(to bottom, rgba(0,0,0,0.9) 0%, rgba(0,0,0,0.5) 15%, rgba(0,0,0,0) 30%),
                 url('background.png');
@@ -23,7 +22,6 @@
             background-repeat: no-repeat;
             overflow: hidden; 
         }
-        /* ------------------------ */
         
         #game-container canvas {
             image-rendering: pixelated;
@@ -52,24 +50,14 @@
         
         #next-container { position: absolute; top: 35px; right: 10px; width: 85px; height: 45px; background: rgba(255,255,255,0.1); border-radius: 20px; display: flex; align-items: center; justify-content: space-around; border: 1px solid rgba(255,255,255,0.2); }
         .next-item { width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; }
-        .next-image { 
-            width: 100%; height: 100%; object-fit: contain; 
-            image-rendering: pixelated; 
-            image-rendering: crisp-edges;
-            image-rendering: -webkit-crisp-edges;
-            image-rendering: -moz-crisp-edges;
-            display: none; 
-        }
+        .next-image { width: 100%; height: 100%; object-fit: contain; image-rendering: pixelated; display: none; }
         .value { font-size: 24px; font-weight: bold; color: #fff; text-shadow: 0 0 8px #2ecc71; }
         
         #game-over { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(0,20,0,0.95); color: white; padding: 40px; border-radius: 20px; text-align: center; display: none; z-index: 1000; border: 3px solid #2ecc71; width: 75%; pointer-events: auto; }
         #retry-btn { 
-            display: none; 
-            margin-top: 25px; padding: 15px 40px; border-radius: 30px; 
+            display: none; margin-top: 25px; padding: 15px 40px; border-radius: 30px; 
             background: #2ecc71; border: none; font-weight: bold; font-size: 18px; 
-            color: #000; cursor: pointer;
-            box-shadow: 0 4px 15px rgba(46, 204, 113, 0.4);
-            animation: fadeInBtn 0.8s ease-out forwards;
+            color: #000; cursor: pointer; animation: fadeInBtn 0.8s ease-out forwards;
         }
         @keyframes fadeInBtn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
         #loading { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: #000; color: #fff; display: flex; justify-content: center; align-items: center; z-index: 100; }
@@ -102,30 +90,19 @@
 </div>
 
 <script>
-// --- 音源の設定とエラーハンドリング ---
 const audioStatus = { bgm: true, rotate: true, merge: true, disappear: true };
 const bgm = new Audio('bgm.mp3');
-bgm.loop = false;
 const seRotate = new Audio('rotate.mp3');
 const seMerge = new Audio('merge.mp3');
 const seDisappear = new Audio('disappear.mp3');
 
-[
-    {a: bgm, id: 'bgm'}, {a: seRotate, id: 'rotate'}, 
-    {a: seMerge, id: 'merge'}, {a: seDisappear, id: 'disappear'}
-].forEach(item => {
-    item.a.addEventListener('error', () => { audioStatus[item.id] = false; });
-});
+[{a: bgm, id: 'bgm'}, {a: seRotate, id: 'rotate'}, {a: seMerge, id: 'merge'}, {a: seDisappear, id: 'disappear'}]
+.forEach(item => { item.a.addEventListener('error', () => { audioStatus[item.id] = false; }); });
 
-function playSE(audio, id) {
-    if (!audioStatus[id]) return;
-    const clone = audio.cloneNode();
-    clone.play().catch(()=>{});
-}
+function playSE(audio, id) { if (!audioStatus[id]) return; const clone = audio.cloneNode(); clone.play().catch(()=>{}); }
 
 const EMOJIS = ["🥚", "🦴", "🌿", "🦕", "REX", "👑"]; 
 const FACE_IMAGE_SOURCES = EMOJIS.map((_, i) => `images/face_${i}.png`);
-// 【修正】オジャマ画像をobs_10までの11種類に変更
 const OBSTACLE_IMAGE_SOURCES = Array.from({length: 11}, (_, i) => `images/obs_${i}.png`);
 const PASSWORD = "968";
 
@@ -144,16 +121,14 @@ let nextQueue = [0, 0, 0].map(() => Math.floor(Math.random() * 3));
 
 let isDragging = false, currentX = WIDTH/2, currentAngle = 0, lastSoundX = WIDTH/2;
 let canDrop = true, overLineStartTime = null;
-let particles = []; // 爆発や合体演出用の粒子
+let particles = [];
 
 const engine = Engine.create();
 const render = Render.create({ element: document.getElementById('game-container'), engine: engine, options: { width: WIDTH, height: HEIGHT, wireframes: false, background: 'transparent' } });
-// 合体判定を激甘にする
 engine.world.gravity.scale *= 1.5; 
 
 function preloadImages(callback) {
-    let loaded = 0;
-    const total = FACE_IMAGE_SOURCES.length + OBSTACLE_IMAGE_SOURCES.length;
+    let loaded = 0; const total = FACE_IMAGE_SOURCES.length + OBSTACLE_IMAGE_SOURCES.length;
     const check = () => { if (++loaded === total) { document.getElementById('loading').style.display='none'; callback(); } };
     FACE_IMAGE_SOURCES.forEach((src, i) => { const img = new Image(); img.src = src; img.onload = () => { faceImages[i]=img; faceImageReady[i]=true; check(); }; img.onerror = () => { faceImageReady[i]=false; check(); }; });
     OBSTACLE_IMAGE_SOURCES.forEach((src, i) => { const img = new Image(); img.src = src; img.onload = () => { obstacleImages[i]=img; obstacleImageReady[i]=true; check(); }; img.onerror = () => { obstacleImageReady[i]=false; check(); }; });
@@ -169,9 +144,7 @@ function spawn(x, y, level, isObstacle = false, sizeOverride = null) {
     const radius = isObstacle ? (sizeOverride || 20) : (level + 1) * 16 + 10;
     const body = Bodies.circle(x, y, radius, { 
         restitution: 0.4, friction: 0.1, slop: 0,
-        label: isObstacle ? "obs" : "friend", 
-        level: level, 
-        // 【修正】オジャマのランダム範囲を配列長に合わせる
+        label: isObstacle ? "obs" : "friend", level: level, 
         obsIndex: Math.floor(Math.random() * OBSTACLE_IMAGE_SOURCES.length),
         render: { visible: false } 
     });
@@ -181,14 +154,9 @@ function spawn(x, y, level, isObstacle = false, sizeOverride = null) {
     return body;
 }
 
-// パーティクル生成（エフェクト）
 function createEffect(x, y, color, count = 20, speed = 10) {
     for (let i = 0; i < count; i++) {
-        particles.push({
-            x, y, vx: (Math.random()-0.5)*speed, vy: (Math.random()-0.5)*speed - (speed/4),
-            size: Math.random()*6+2, color: color, life: 1.0, 
-            decay: Math.random()*0.02 + 0.02
-        });
+        particles.push({ x, y, vx: (Math.random()-0.5)*speed, vy: (Math.random()-0.5)*speed - (speed/4), size: Math.random()*6+2, color: color, life: 1.0, decay: Math.random()*0.02 + 0.02 });
     }
 }
 
@@ -203,28 +171,29 @@ function updateUI() {
 
 const handleEnd = () => {
     if (isGameOver || !canDrop) return;
-    if (!gameStarted) { 
-        gameStarted = true; 
-        document.getElementById('start-screen').style.display = 'none'; 
-        if (audioStatus.bgm) bgm.play().catch(()=>{}); 
-        obstacleLoop(); 
-    }
+    if (!gameStarted) { gameStarted = true; document.getElementById('start-screen').style.display = 'none'; if (audioStatus.bgm) bgm.play().catch(()=>{}); obstacleLoop(); }
     if (!isDragging) return;
     isDragging = false; canDrop = false;
-    spawn(currentX, 65, nextQueue.shift());
+    
+    // スポーン
+    const body = spawn(currentX, 65, nextQueue.shift());
+    
+    // 【新機能】落下時のゆるやかな回転をランダムに設定
+    // 左右と速度をランダムに ( -0.04 〜 0.04 くらいのトルク)
+    const randomTorque = (Math.random() - 0.5) * 0.08;
+    Body.setAngularVelocity(body, randomTorque);
+
     nextQueue.push(Math.floor(Math.random() * 3));
     updateUI();
     currentAngle = 0;
     setTimeout(() => { canDrop = true; }, 500);
 };
 
-// 合体・スコア処理
 Events.on(engine, 'collisionStart', (event) => {
     event.pairs.forEach(pair => {
         const { bodyA, bodyB } = pair;
         if (bodyA.label === "friend" && bodyB.label === "friend" && bodyA.level === bodyB.level && !bodyA.isDeleting && !bodyB.isDeleting) {
-            const level = bodyA.level;
-            if (level >= 5) return;
+            const level = bodyA.level; if (level >= 5) return;
             const nx = (bodyA.position.x + bodyB.position.x) / 2;
             const ny = (bodyA.position.y + bodyB.position.y) / 2;
             bodyA.isDeleting = bodyB.isDeleting = true;
@@ -232,40 +201,18 @@ Events.on(engine, 'collisionStart', (event) => {
             
             if (level < 4) { 
                 spawn(nx, ny, level + 1); 
-                // ゲーム終了後はスコアを加算しない
-                if (!isGameOver) {
-                    playSE(seMerge, 'merge');
-                    // 合体演出：白いピクセル粒子を出す
-                    createEffect(nx, ny, "#ffffff", 15, 8);
-                    score += (level + 1) * 100; 
-                    document.getElementById('score').innerText = score;
-                }
-            }
-            else {
+                if (!isGameOver) { playSE(seMerge, 'merge'); createEffect(nx, ny, "#ffffff", 15, 8); score += (level + 1) * 100; document.getElementById('score').innerText = score; }
+            } else {
                 const crown = spawn(nx, ny - 30, 5); crown.isFinal = true;
                 Body.setVelocity(crown, { x: (Math.random()-0.5)*15, y: -25 });
                 Body.setAngularVelocity(crown, (Math.random() - 0.5) * 0.3);
-                if (!isGameOver) {
-                    playSE(seMerge, 'merge');
-                    // 合体演出：白いピクセル粒子を出す
-                    createEffect(nx, ny, "#ffffff", 15, 8);
-                    score += 5000;
-                    document.getElementById('score').innerText = score;
-                }
-                
+                if (!isGameOver) { playSE(seMerge, 'merge'); createEffect(nx, ny, "#ffffff", 15, 8); score += 5000; document.getElementById('score').innerText = score; }
                 setTimeout(() => {
-                    playSE(seDisappear, 'disappear');
-                    // 王冠爆発演出：カラフルな粒子
-                    createEffect(crown.position.x, crown.position.y, `hsl(${Math.random()*360}, 80%, 60%)`, 60, 20);
+                    playSE(seDisappear, 'disappear'); createEffect(crown.position.x, crown.position.y, `hsl(${Math.random()*360}, 80%, 60%)`, 60, 20);
                     World.remove(engine.world, crown);
                     Composite.allBodies(engine.world).forEach(b => {
                         if (b.label === "obs" && Vector.magnitude(Vector.sub(b.position, crown.position)) < 250) {
-                            World.remove(engine.world, b); 
-                            // 爆発のラグ中にゲームが終わった場合も加算しない
-                            if (!isGameOver) {
-                                score += 500;
-                                document.getElementById('score').innerText = score;
-                            }
+                            World.remove(engine.world, b); if (!isGameOver) { score += 500; document.getElementById('score').innerText = score; }
                         }
                     });
                 }, 1500);
@@ -276,10 +223,7 @@ Events.on(engine, 'collisionStart', (event) => {
 
 Events.on(engine, 'afterUpdate', () => {
     if (isGameOver || !gameStarted) return;
-    particles.forEach((p, i) => { 
-        p.x += p.vx; p.y += p.vy; p.vy += 0.15; p.life -= p.decay; 
-        if(p.life <= 0) particles.splice(i, 1); 
-    });
+    particles.forEach((p, i) => { p.x += p.vx; p.y += p.vy; p.vy += 0.15; p.life -= p.decay; if(p.life <= 0) particles.splice(i, 1); });
     const bodies = Composite.allBodies(engine.world);
     let highestY = 999;
     bodies.forEach(b => { if (!b.isStatic && b.position.y > 80 && !b.isFinal) highestY = Math.min(highestY, b.position.y); });
@@ -292,93 +236,40 @@ Events.on(engine, 'afterUpdate', () => {
 });
 
 function endGame(reason, isTimeUp) {
-    if (isGameOver) return;
-    isGameOver = true; // ここでフラグが立つため、以降のスコア加算が止まる
-    if (!isTimeUp) { bgm.pause(); bgm.currentTime = 0; }
+    if (isGameOver) return; isGameOver = true;
+    if (!isTimeUp && audioStatus.bgm) { bgm.pause(); bgm.currentTime = 0; }
     if (score > highScore) { highScore = score; localStorage.setItem('suika_high_score', highScore); document.getElementById('new-record').style.display='block'; }
-    
-    document.getElementById('game-over').style.display='block';
-    document.getElementById('over-reason').innerText = reason;
+    document.getElementById('game-over').style.display='block'; document.getElementById('over-reason').innerText = reason;
     document.getElementById('final-score').innerText = score;
-
-    setTimeout(() => {
-        document.getElementById('retry-btn').style.display = 'inline-block';
-    }, 1500);
+    setTimeout(() => { document.getElementById('retry-btn').style.display = 'inline-block'; }, 1500);
 }
 
 Events.on(render, 'afterRender', () => {
     const ctx = render.context;
-    // パーティクルの描画（ピクセル四角形）
-    particles.forEach(p => { 
-        ctx.fillStyle = p.color; 
-        ctx.globalAlpha = p.life; 
-        ctx.fillRect(p.x - p.size/2, p.y - p.size/2, p.size, p.size); 
-    });
+    particles.forEach(p => { ctx.fillStyle = p.color; ctx.globalAlpha = p.life; ctx.fillRect(p.x - p.size/2, p.y - p.size/2, p.size, p.size); });
     ctx.globalAlpha = 1.0;
     
-    // 【ドット絵対策・縮尺維持】プレビュー画像の描画ロジック
     if (!isGameOver && canDrop) {
-        const lv = nextQueue[0];
-        const radius = (lv + 1) * 16 + 10;
-        const targetSize = radius * 2.2; // ターゲットとなる「最大」サイズ
-        const img = faceImages[lv];
-
+        const lv = nextQueue[0]; const radius = (lv + 1) * 16 + 10; const targetSize = radius * 2.2; const img = faceImages[lv];
         if (isDragging) { ctx.setLineDash([5, 5]); ctx.beginPath(); ctx.moveTo(currentX, 65); ctx.lineTo(currentX, HEIGHT); ctx.strokeStyle = "rgba(46,204,113,0.3)"; ctx.stroke(); ctx.setLineDash([]); }
-        
-        ctx.save();
-        ctx.translate(currentX, 65);
-        ctx.rotate(currentAngle);
-
+        ctx.save(); ctx.translate(currentX, 65); ctx.rotate(currentAngle);
         if (img && img.complete) {
-            // アスペクト比を維持して拡大
-            const originalAspectRatio = img.naturalWidth / img.naturalHeight;
-            let dw, dh;
-            if (originalAspectRatio > 1) {
-                // 横長
-                dw = targetSize;
-                dh = targetSize / originalAspectRatio;
-            } else if (originalAspectRatio < 1) {
-                // 縦長
-                dh = targetSize;
-                dw = targetSize * originalAspectRatio;
-            } else {
-                // 正方形
-                dw = targetSize;
-                dh = targetSize;
-            }
+            const asp = img.naturalWidth / img.naturalHeight;
+            let dw = asp > 1 ? targetSize : targetSize * asp; let dh = asp > 1 ? targetSize / asp : targetSize;
             ctx.drawImage(img, -dw/2, -dh/2, dw, dh);
-        } else {
-            // 画像がない場合はテキストでアスペクト比計算なし
-            ctx.font = `${targetSize}px Arial`; ctx.textAlign="center"; ctx.textBaseline="middle"; ctx.fillText(EMOJIS[lv], 0, 0);
         }
         ctx.restore();
     }
     
-    // 【ドット絵対策・縮尺維持】物理オブジェクトの描画ロジック
     Composite.allBodies(engine.world).forEach(b => {
         if (b.label === "friend" || b.label === "obs") {
-            const radius = b.radius;
-            const targetSize = radius * 2.2;
-            const img = (b.label === "obs") ? obstacleImages[b.obsIndex] : faceImages[b.level];
-
-            ctx.save();
-            ctx.translate(b.position.x, b.position.y);
-            ctx.rotate(b.angle);
-
+            const targetSize = b.radius * 2.2; const img = (b.label === "obs") ? obstacleImages[b.obsIndex] : faceImages[b.level];
+            ctx.save(); ctx.translate(b.position.x, b.position.y); ctx.rotate(b.angle);
             if (b.isFinal) { ctx.shadowColor = '#fff'; ctx.shadowBlur = 30 + Math.sin(Date.now()/100)*15; } 
-
             if (img && img.complete) {
-                // アスペクト比を維持して拡大
-                const originalAspectRatio = img.naturalWidth / img.naturalHeight;
-                let dw, dh;
-                if (originalAspectRatio > 1) { dw = targetSize; dh = targetSize / originalAspectRatio; }
-                else if (originalAspectRatio < 1) { dh = targetSize; dw = targetSize * originalAspectRatio; }
-                else { dw = targetSize; dh = targetSize; }
+                const asp = img.naturalWidth / img.naturalHeight;
+                let dw = asp > 1 ? targetSize : targetSize * asp; let dh = asp > 1 ? targetSize / asp : targetSize;
                 ctx.drawImage(img, -dw/2, -dh/2, dw, dh);
-            } else {
-                // 画像がない場合はテキストでそのまま
-                if (b.label === "obs") { ctx.font=`${targetSize}px Arial`; ctx.fillText("💣", 0, 0); }
-                else { ctx.font=`${targetSize}px Arial`; ctx.textAlign="center"; ctx.textBaseline="middle"; ctx.fillText(EMOJIS[b.level], 0, 0); }
             }
             ctx.restore();
         }
@@ -393,25 +284,20 @@ function obstacleLoop() {
     setTimeout(obstacleLoop, d);
 }
 
-setInterval(() => { if(gameStarted && !isGameOver && timeLeft > 0) { timeLeft--; document.getElementById('timer').innerText = timeLeft; if(timeLeft===0) endGame("ゲームクリア！", true); } }, 1000);
+setInterval(() => { if(gameStarted && !isGameOver && timeLeft > 0) { timeLeft--; document.getElementById('timer').innerText = timeLeft; if(timeLeft===0) endGame("タイムアップ！", true); } }, 1000);
 
 function updateX(e) { 
     const rect = render.canvas.getBoundingClientRect(); 
     const clientX = e.clientX ?? e.touches?.[0].clientX ?? currentX;
     const newX = Math.max(30, Math.min(WIDTH-30, clientX - rect.left));
-    const diff = newX - currentX;
-    currentAngle += diff * 0.05;
-    currentX = newX;
-    if (Math.abs(currentX - lastSoundX) > 15) {
-        playSE(seRotate, 'rotate');
-        lastSoundX = currentX;
-    }
+    const diff = newX - currentX; currentAngle += diff * 0.05; currentX = newX;
+    if (Math.abs(currentX - lastSoundX) > 15) { playSE(seRotate, 'rotate'); lastSoundX = currentX; }
 }
 
-window.addEventListener('mousedown', (e) => { if(!isGameOver && canDrop) { isDragging = true; lastSoundX = currentX; updateX(e); } });
+window.addEventListener('mousedown', (e) => { if(!isGameOver && canDrop) { isDragging = true; updateX(e); } });
 window.addEventListener('mousemove', (e) => { if(isDragging) updateX(e); });
 window.addEventListener('mouseup', handleEnd);
-window.addEventListener('touchstart', (e) => { if(!isGameOver && canDrop) { isDragging = true; lastSoundX = currentX; updateX(e); } }, {passive: false});
+window.addEventListener('touchstart', (e) => { if(!isGameOver && canDrop) { isDragging = true; updateX(e); } }, {passive: false});
 window.addEventListener('touchmove', (e) => { if(isDragging) updateX(e); }, {passive: false});
 window.addEventListener('touchend', handleEnd);
 
