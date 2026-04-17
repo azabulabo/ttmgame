@@ -90,13 +90,15 @@
 </div>
 
 <script>
-const audioStatus = { bgm: true, rotate: true, merge: true, disappear: true };
+// --- 音源の設定 (final.mp3 を追加) ---
+const audioStatus = { bgm: true, rotate: true, merge: true, disappear: true, final: true };
 const bgm = new Audio('bgm.mp3');
 const seRotate = new Audio('rotate.mp3');
 const seMerge = new Audio('merge.mp3');
 const seDisappear = new Audio('disappear.mp3');
+const seFinal = new Audio('final.mp3'); // 追加：最終生成音
 
-[{a: bgm, id: 'bgm'}, {a: seRotate, id: 'rotate'}, {a: seMerge, id: 'merge'}, {a: seDisappear, id: 'disappear'}]
+[{a: bgm, id: 'bgm'}, {a: seRotate, id: 'rotate'}, {a: seMerge, id: 'merge'}, {a: seDisappear, id: 'disappear'}, {a: seFinal, id: 'final'}]
 .forEach(item => { item.a.addEventListener('error', () => { audioStatus[item.id] = false; }); });
 
 function playSE(audio, id) { if (!audioStatus[id]) return; const clone = audio.cloneNode(); clone.play().catch(()=>{}); }
@@ -178,7 +180,6 @@ const handleEnd = () => {
     // スポーン
     const body = spawn(currentX, 65, nextQueue.shift());
     
-    // 【新機能】落下時のゆるやかな回転をランダムに設定
     // 左右と速度をランダムに ( -0.04 〜 0.04 くらいのトルク)
     const randomTorque = (Math.random() - 0.5) * 0.08;
     Body.setAngularVelocity(body, randomTorque);
@@ -189,6 +190,7 @@ const handleEnd = () => {
     setTimeout(() => { canDrop = true; }, 500);
 };
 
+// 合体処理
 Events.on(engine, 'collisionStart', (event) => {
     event.pairs.forEach(pair => {
         const { bodyA, bodyB } = pair;
@@ -200,19 +202,42 @@ Events.on(engine, 'collisionStart', (event) => {
             World.remove(engine.world, [bodyA, bodyB]);
             
             if (level < 4) { 
-                spawn(nx, ny, level + 1); 
-                if (!isGameOver) { playSE(seMerge, 'merge'); createEffect(nx, ny, "#ffffff", 15, 8); score += (level + 1) * 100; document.getElementById('score').innerText = score; }
+                // --- 通常の合体演出 ---
+                const nextBody = spawn(nx, ny, level + 1); 
+                
+                // 【新機能】ピョコンと跳ねて回転する
+                Body.setVelocity(nextBody, { x: (Math.random() - 0.5) * 3, y: -7 }); // 少し上に跳ねる
+                Body.setAngularVelocity(nextBody, (Math.random() - 0.5) * 0.15); // ランダムなトルク
+                
+                if (!isGameOver) { 
+                    playSE(seMerge, 'merge'); 
+                    createEffect(nx, ny, "#ffffff", 15, 8); 
+                    score += (level + 1) * 100; 
+                    document.getElementById('score').innerText = score; 
+                }
             } else {
+                // --- 最終段階（王冠👑）生成演出 ---
                 const crown = spawn(nx, ny - 30, 5); crown.isFinal = true;
+                
+                // 激しく暴れる設定
                 Body.setVelocity(crown, { x: (Math.random()-0.5)*15, y: -25 });
                 Body.setAngularVelocity(crown, (Math.random() - 0.5) * 0.3);
-                if (!isGameOver) { playSE(seMerge, 'merge'); createEffect(nx, ny, "#ffffff", 15, 8); score += 5000; document.getElementById('score').innerText = score; }
+                
+                if (!isGameOver) { 
+                    playSE(seFinal, 'final'); // 【新機能】専用の最終生成音を再生
+                    createEffect(nx, ny, "#ffffff", 25, 12); 
+                    score += 5000; 
+                    document.getElementById('score').innerText = score; 
+                }
+                
                 setTimeout(() => {
-                    playSE(seDisappear, 'disappear'); createEffect(crown.position.x, crown.position.y, `hsl(${Math.random()*360}, 80%, 60%)`, 60, 20);
+                    playSE(seDisappear, 'disappear'); 
+                    createEffect(crown.position.x, crown.position.y, `hsl(${Math.random()*360}, 80%, 60%)`, 60, 20);
                     World.remove(engine.world, crown);
                     Composite.allBodies(engine.world).forEach(b => {
                         if (b.label === "obs" && Vector.magnitude(Vector.sub(b.position, crown.position)) < 250) {
-                            World.remove(engine.world, b); if (!isGameOver) { score += 500; document.getElementById('score').innerText = score; }
+                            World.remove(engine.world, b); 
+                            if (!isGameOver) { score += 500; document.getElementById('score').innerText = score; }
                         }
                     });
                 }, 1500);
@@ -231,7 +256,7 @@ Events.on(engine, 'afterUpdate', () => {
     if (highestY < LIMIT_Y) {
         dl.classList.add('danger');
         if (!overLineStartTime) overLineStartTime = Date.now();
-        if ((Date.now() - overLineStartTime) / 1000 > 3) endGame("絶滅しました...", false);
+        if ((Date.now() - overLineStartTime) / 1000 > 3) endGame("いっぱいになった...", false);
     } else { dl.classList.remove('danger'); overLineStartTime = null; }
 });
 
