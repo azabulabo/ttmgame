@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>つとむゲーム - DINO CLIMAX -</title>
+    <title>つとむゲーム</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
     <style>
         :root { --base-width: 375px; --base-height: 667px; }
@@ -27,30 +27,26 @@
         .next-image { width: 100%; height: 100%; object-fit: contain; display: none; }
         .value { font-size: 24px; font-weight: bold; color: #fff; text-shadow: 0 0 8px #2ecc71; }
         
-        /* ゲームオーバー画面 */
         #game-over { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(0,20,0,0.95); color: white; padding: 40px; border-radius: 20px; text-align: center; display: none; z-index: 1000; border: 3px solid #2ecc71; width: 75%; pointer-events: auto; }
-        
-        /* リトライボタンの遅延表示用スタイル */
         #retry-btn { 
-            display: none; /* 最初は隠す */
+            display: none; 
             margin-top: 25px; padding: 15px 40px; border-radius: 30px; 
             background: #2ecc71; border: none; font-weight: bold; font-size: 18px; 
             color: #000; cursor: pointer;
             box-shadow: 0 4px 15px rgba(46, 204, 113, 0.4);
             animation: fadeInBtn 0.8s ease-out forwards;
         }
-        @keyframes fadeInBtn {
-            from { opacity: 0; transform: translateY(10px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-
+        @keyframes fadeInBtn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
         #loading { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: #000; color: #fff; display: flex; justify-content: center; align-items: center; z-index: 100; }
     </style>
 </head>
 <body>
 <div id="game-container">
     <div id="loading">DINO LOADING...</div>
-    <div id="start-screen"><div id="start-msg">タップしてスタート</div><p style="color: #aaa; margin-top:20px;">王冠を爆発させろ！</p></div>
+    <div id="start-screen">
+        <div id="start-msg">タップしてスタート</div>
+        <p style="color: #aaa; margin-top:20px;">青山のことを忘れないでください！</p>
+    </div>
     <div id="deadline"></div>
     <div id="ui-layer">
         <div id="score-box"><div style="font-size:10px; color:#aaa;">SCORE</div><div id="score" class="value">0</div></div>
@@ -90,12 +86,11 @@ const faceImages = [], faceImageReady = [], obstacleImages = [], obstacleImageRe
 let score = 0, highScore = parseInt(localStorage.getItem('suika_high_score')) || 0;
 let timeLeft = 60, isGameOver = false, gameStarted = false;
 let nextQueue = [0, 0, 0].map(() => Math.floor(Math.random() * 3));
-let isDragging = false, currentX = WIDTH/2, previewAngle = 0, lastX = WIDTH/2, canDrop = true, overLineStartTime = null;
+let isDragging = false, currentX = WIDTH/2, canDrop = true, overLineStartTime = null;
 let particles = [];
 
 const engine = Engine.create();
 const render = Render.create({ element: document.getElementById('game-container'), engine: engine, options: { width: WIDTH, height: HEIGHT, wireframes: false, background: 'transparent' } });
-
 engine.world.gravity.scale *= 1.5; 
 
 function preloadImages(callback) {
@@ -155,6 +150,7 @@ const handleEnd = () => {
     setTimeout(() => { canDrop = true; }, 500);
 };
 
+// 合体・スコア処理
 Events.on(engine, 'collisionStart', (event) => {
     event.pairs.forEach(pair => {
         const { bodyA, bodyB } = pair;
@@ -165,23 +161,39 @@ Events.on(engine, 'collisionStart', (event) => {
             const ny = (bodyA.position.y + bodyB.position.y) / 2;
             bodyA.isDeleting = bodyB.isDeleting = true;
             World.remove(engine.world, [bodyA, bodyB]);
-            if (level < 4) { spawn(nx, ny, level + 1); score += (level + 1) * 100; }
+            
+            if (level < 4) { 
+                spawn(nx, ny, level + 1); 
+                // ゲーム終了後はスコアを加算しない
+                if (!isGameOver) {
+                    score += (level + 1) * 100; 
+                    document.getElementById('score').innerText = score;
+                }
+            }
             else {
                 const crown = spawn(nx, ny - 30, 5); crown.isFinal = true;
                 Body.setVelocity(crown, { x: (Math.random()-0.5)*15, y: -25 });
                 Body.setAngularVelocity(crown, (Math.random()-0.5)*0.3);
-                score += 5000;
+                if (!isGameOver) {
+                    score += 5000;
+                    document.getElementById('score').innerText = score;
+                }
+                
                 setTimeout(() => {
                     createConfetti(crown.position.x, crown.position.y);
                     World.remove(engine.world, crown);
                     Composite.allBodies(engine.world).forEach(b => {
                         if (b.label === "obs" && Vector.magnitude(Vector.sub(b.position, crown.position)) < 250) {
-                            World.remove(engine.world, b); score += 500;
+                            World.remove(engine.world, b); 
+                            // 爆発のラグ中にゲームが終わった場合も加算しない
+                            if (!isGameOver) {
+                                score += 500;
+                                document.getElementById('score').innerText = score;
+                            }
                         }
                     });
                 }, 1500);
             }
-            document.getElementById('score').innerText = score;
         }
     });
 });
@@ -202,19 +214,16 @@ Events.on(engine, 'afterUpdate', () => {
 
 function endGame(reason, isTimeUp) {
     if (isGameOver) return;
-    isGameOver = true;
+    isGameOver = true; // ここでフラグが立つため、以降のスコア加算が止まる
     if (!isTimeUp) { bgm.pause(); bgm.currentTime = 0; }
     if (score > highScore) { highScore = score; localStorage.setItem('suika_high_score', highScore); document.getElementById('new-record').style.display='block'; }
     
-    // UI表示
     document.getElementById('game-over').style.display='block';
     document.getElementById('over-reason').innerText = reason;
     document.getElementById('final-score').innerText = score;
 
-    // 【重要】ボタンを1.5秒遅らせて表示
     setTimeout(() => {
-        const btn = document.getElementById('retry-btn');
-        btn.style.display = 'inline-block';
+        document.getElementById('retry-btn').style.display = 'inline-block';
     }, 1500);
 }
 
