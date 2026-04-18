@@ -405,22 +405,31 @@ Events.on(render, 'afterRender', () => {
         }
     });
 
-    // 【新設】かっこいいスコア数字の描画
+    //
     floatingTexts.forEach(ft => {
         ctx.save();
         ctx.globalAlpha = ft.life;
         ctx.textAlign = 'center';
-        ctx.font = ft.isBig ? 'bold 36px sans-serif' : 'bold 24px sans-serif';
+        ctx.textBaseline = 'middle';
         
-        // 装飾：シャドウと縁取り
-        ctx.shadowColor = '#2ecc71';
-        ctx.shadowBlur = 10;
-        ctx.strokeStyle = '#fff';
-        ctx.lineWidth = 4;
+        // フォントサイズをさらに大きく
+        const fontSize = ft.isBig ? '60px' : '34px';
+        ctx.font = `bold ${fontSize} sans-serif`;
+        
+        // 1. 強力な黒縁取り（視認性の要）
+        ctx.strokeStyle = '#000000';
+        ctx.lineWidth = 6;
         ctx.strokeText(ft.text, ft.x, ft.y);
         
-        ctx.fillStyle = '#2ecc71';
+        // 2. メインの白い文字
+        ctx.fillStyle = '#ffffff';
         ctx.fillText(ft.text, ft.x, ft.y);
+        
+        // 3. 仕上げのグロー効果（少し緑を混ぜてゲーム感を出す）
+        ctx.shadowColor = '#2ecc71';
+        ctx.shadowBlur = 15;
+        ctx.fillText(ft.text, ft.x, ft.y);
+        
         ctx.restore();
     });
 });
