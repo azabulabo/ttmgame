@@ -77,18 +77,18 @@
         </div>
     </div>
     <div id="game-over">
-        <div id="new-record" style="display:none; color:#ffeb3b;">✨ NEW RECORD ✨</div>
-        <h1 id="over-title" style="margin:0 0 10px 0;">終了</h1>
+        <h1 id="over-title" style="margin:0 0 10px 0;">ありがとう</h1>
         <p id="over-reason" style="margin-bottom:20px; color:#ccc;"></p>
+        <div id="new-record" style="display:none; color:#ffeb3b;">✨ NEW RECORD ✨</div>
         <div id="final-score" class="value" style="font-size:48px;">0</div>
-        <button id="retry-btn" onclick="location.reload()">もう一度遊ぶ</button>
+        <button id="retry-btn" onclick="location.reload()">もういちど！</button>
     </div>
 </div>
 
 <script>
 // 音源設定
 const audioStatus = { bgm: true, rotate: true, merge: true, disappear: true, final: true };
-const bgm = new Audio('bgm.mp3');
+const bgm = new Audio('bgm.mp3'); bgm.loop = false;
 const seRotate = new Audio('rotate.mp3');
 const seMerge = new Audio('merge.mp3');
 const seDisappear = new Audio('disappear.mp3');
@@ -115,12 +115,13 @@ const { Engine, Render, Runner, World, Bodies, Events, Composite, Vector, Body }
 const WIDTH = 375, HEIGHT = 667, LIMIT_Y = 110;
 const faceImages = [], faceImageReady = [], obstacleImages = [], obstacleImageReady = [];
 let score = 0, highScore = parseInt(localStorage.getItem('suika_high_score')) || 0;
-let timeLeft = 45, isGameOver = false, gameStarted = false; // 45秒に設定
+let timeLeft = 45, isGameOver = false, gameStarted = false;
 let nextQueue = [0, 0, 0].map(() => Math.floor(Math.random() * 3));
 
 let isDragging = false, currentX = WIDTH/2, currentAngle = 0, lastSoundX = WIDTH/2;
 let canDrop = true, overLineStartTime = null;
 let particles = [];
+let activeBigExplosion = false; // 大爆発中フラグ
 
 const engine = Engine.create();
 const render = Render.create({ element: document.getElementById('game-container'), engine: engine, options: { width: WIDTH, height: HEIGHT, wireframes: false, background: 'transparent' } });
@@ -129,7 +130,7 @@ engine.world.gravity.scale *= 1.5;
 function preloadImages(callback) {
     let loaded = 0; const total = FACE_IMAGE_SOURCES.length + OBSTACLE_IMAGE_SOURCES.length;
     const check = () => { if (++loaded === total) { document.getElementById('loading').style.display='none'; callback(); } };
-    FACE_IMAGE_SOURCES.forEach((src, i) => { const img = new Image(); img.src = src; img.onload = () => { faceImages[i]=img; faceImageReady[i]=true; check(); }; img.onerror = () => { faceImageReady[i]=false; check(); }; });
+    FACE_IMAGE_SOURCES.forEach((src, i) => { const img = new Image(); img.src = src; img.onload = () => { faceImages[i]=img; faceImageReady[i]=true; check(); }; img.onerror = () => { faceImageReady[i]=false; checkDone(); }; });
     OBSTACLE_IMAGE_SOURCES.forEach((src, i) => { const img = new Image(); img.src = src; img.onload = () => { obstacleImages[i]=img; obstacleImageReady[i]=true; check(); }; img.onerror = () => { obstacleImageReady[i]=false; check(); }; });
 }
 
@@ -153,9 +154,14 @@ function spawn(x, y, level, isObstacle = false, sizeOverride = null) {
     return body;
 }
 
-function createEffect(x, y, color, count = 20, speed = 10) {
+// パーティクル生成（エフェクト）
+function createEffect(x, y, color, count = 20, speed = 10, decayBase = 0.02) {
     for (let i = 0; i < count; i++) {
-        particles.push({ x, y, vx: (Math.random()-0.5)*speed, vy: (Math.random()-0.5)*speed - (speed/4), size: Math.random()*6+2, color: color, life: 1.0, decay: Math.random()*0.02 + 0.02 });
+        particles.push({ 
+            x, y, vx: (Math.random()-0.5)*speed, vy: (Math.random()-0.5)*speed - (speed/4), 
+            size: Math.random()*6+2, color: color, life: 1.0, 
+            decay: Math.random()*0.02 + decayBase 
+        });
     }
 }
 
@@ -178,7 +184,7 @@ const handleEnd = () => {
     isDragging = false; canDrop = false;
     
     const body = spawn(currentX, 65, nextQueue.shift());
-    // ドロップ時の回転
+    // ドロップ時のゆるやかな回転
     Body.setAngularVelocity(body, (Math.random() - 0.5) * 0.08);
 
     nextQueue.push(Math.floor(Math.random() * 3));
@@ -206,15 +212,29 @@ Events.on(engine, 'collisionStart', (event) => {
                 
                 if (!isGameOver) { playSE(seMerge, 'merge'); createEffect(nx, ny, "#ffffff", 15, 8); score += (level + 1) * 100; document.getElementById('score').innerText = score; }
             } else {
+                // 最終段階生成演出
                 const crown = spawn(nx, ny - 30, 5); crown.isFinal = true;
                 Body.setVelocity(crown, { x: (Math.random()-0.5)*15, y: -25 });
                 Body.setAngularVelocity(crown, (Math.random() - 0.5) * 0.3);
+                
                 if (!isGameOver) { 
-                    playSE(seFinal, 'final'); // 最終段階SE
+                    playSE(seFinal, 'final');
                     createEffect(nx, ny, "#ffffff", 25, 12); score += 5000; document.getElementById('score').innerText = score; 
                 }
                 setTimeout(() => {
-                    playSE(seDisappear, 'disappear'); createEffect(crown.position.x, crown.position.y, `hsl(${Math.random()*360}, 80%, 60%)`, 60, 20);
+                    playSE(seDisappear, 'disappear');
+                    
+                    activeBigExplosion = true; // 加算合成モードON
+                    const ex = crown.position.x;
+                    const ey = crown.position.y;
+                    
+                    createEffect(ex, ey, "#ffffff", 150, 25, 0.01); // 白・核
+                    createEffect(ex, ey, "#ffeb3b", 150, 28, 0.01); // 黄・光
+                    createEffect(ex, ey, "#2ecc71", 150, 26, 0.01); // 緑・フレア
+                    
+                    // 1.5秒後に加算合成モードをOFFにする
+                    setTimeout(() => activeBigExplosion = false, 1500);
+
                     World.remove(engine.world, crown);
                     Composite.allBodies(engine.world).forEach(b => {
                         if (b.label === "obs" && Vector.magnitude(Vector.sub(b.position, crown.position)) < 250) {
@@ -237,7 +257,7 @@ Events.on(engine, 'afterUpdate', () => {
     if (highestY < LIMIT_Y) {
         dl.classList.add('danger');
         if (!overLineStartTime) overLineStartTime = Date.now();
-        if ((Date.now() - overLineStartTime) / 1000 > 3) endGame("絶滅しました...", false);
+        if ((Date.now() - overLineStartTime) / 1000 > 3) endGame("いっぱいになった...", false);
     } else { dl.classList.remove('danger'); overLineStartTime = null; }
 });
 
@@ -253,8 +273,26 @@ function endGame(reason, isTimeUp) {
 // レンダリング
 Events.on(render, 'afterRender', () => {
     const ctx = render.context;
-    particles.forEach(p => { ctx.fillStyle = p.color; ctx.globalAlpha = p.life; ctx.fillRect(p.x - p.size/2, p.y - p.size/2, p.size, p.size); });
+    
+    // パーティクルの描画（ピクセル四角形）
+    // 【強化】大爆発時は加算合成で描画
+    if (activeBigExplosion) {
+        ctx.globalCompositeOperation = 'lighter';
+    }
+    
+    particles.forEach(p => { 
+        ctx.fillStyle = p.color; 
+        ctx.globalAlpha = p.life; 
+
+        if (activeBigExplosion && Math.random() > 0.5) {
+             ctx.globalAlpha = p.life * 0.7;
+        }
+        ctx.fillRect(p.x - p.size/2, p.y - p.size/2, p.size, p.size); 
+    });
+    
+    // 描画モードを元に戻す
     ctx.globalAlpha = 1.0;
+    ctx.globalCompositeOperation = 'source-over';
     
     if (!isGameOver && canDrop) {
         const lv = nextQueue[0]; const radius = (lv + 1) * 16 + 10; const targetSize = radius * 2.2; const img = faceImages[lv];
@@ -283,18 +321,16 @@ Events.on(render, 'afterRender', () => {
     });
 });
 
-// --- 調整済み：45秒向けオジャマ密度のロジック ---
+// オジャマ密度のロジック
 function obstacleLoop() {
     if (isGameOver) return;
-    // 45秒に合わせた密度：残り30秒、10秒で激しくなる
     let d = timeLeft <= 10 ? 300 : (timeLeft <= 30 ? 800 : 1800);
-    // 成長速度（巨大化）もアップ
     let size = 20 + (45 - timeLeft) * 0.8; 
     if (timeLeft <= 42) spawn(Math.random()*(WIDTH-60)+30, -50, 0, true, size);
     setTimeout(obstacleLoop, d);
 }
 
-setInterval(() => { if(gameStarted && !isGameOver && timeLeft > 0) { timeLeft--; document.getElementById('timer').innerText = timeLeft; if(timeLeft===0) endGame("タイムアップ！", true); } }, 1000);
+setInterval(() => { if(gameStarted && !isGameOver && timeLeft > 0) { timeLeft--; document.getElementById('timer').innerText = timeLeft; if(timeLeft===0) endGame("ゲームクリア！", true); } }, 1000);
 
 function updateX(e) { 
     const rect = render.canvas.getBoundingClientRect(); 
