@@ -24,52 +24,52 @@
         
         #game-container canvas { image-rendering: pixelated; }
 
-        .overlay-screen { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 50; cursor: pointer; }
+        /* オーバーレイ設定 */
+        .overlay-screen { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 100; cursor: pointer; }
         #start-screen { background: rgba(0,0,0,0.85); }
-        #pause-screen { background: rgba(0,0,0,0.7); display: none; z-index: 60; }
+        #pause-screen { background: rgba(0,0,0,0.7); display: none; }
 
         .blink-msg { color: #2ecc71; font-size: 32px; font-weight: bold; text-shadow: 0 0 15px #2ecc71; animation: pulse 1.5s infinite; }
         @keyframes pulse { 0% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.05); opacity: 0.7; } 100% { transform: scale(1); opacity: 1; } }
 
-        #ui-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 10; }
-        #score-box { position: absolute; top: 15px; left: 15px; }
-        #best-box { position: absolute; top: 15px; left: 100px; }
-        #timer-box { position: absolute; top: 15px; left: 55%; transform: translateX(-50%); text-align: center; }
+        /* UIレイヤーの横一列レイアウト */
+        #ui-layer { 
+            position: absolute; top: 0; left: 0; width: 100%; height: 60px; 
+            padding: 10px 15px; box-sizing: border-box;
+            display: flex; align-items: center; justify-content: space-between;
+            pointer-events: none; z-index: 10;
+        }
         
+        .ui-group { display: flex; flex-direction: column; justify-content: center; }
+        .label { font-size: 10px; color: #aaa; margin-bottom: 2px; }
+        .value { font-size: 20px; font-weight: bold; color: #fff; text-shadow: 0 0 8px #2ecc71; line-height: 1; }
+
+        /* Nextとポーズボタンの右側セット */
+        #right-controls { display: flex; align-items: center; pointer-events: auto; }
+        
+        #next-container { 
+            width: 70px; height: 35px; background: rgba(255,255,255,0.1); 
+            border-radius: 10px; display: flex; align-items: center; justify-content: space-around; 
+            border: 1px solid rgba(255,255,255,0.2); margin-right: 12px;
+        }
+        .next-item { width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; }
+        .next-image { width: 100%; height: 100%; object-fit: contain; image-rendering: pixelated; display: none; }
+
         #pause-btn { 
-            position: absolute; top: 15px; right: 15px; width: auto; height: auto; 
-            background: none; border: none;
-            color: white; display: none; align-items: center; justify-content: center; 
-            font-size: 24px; font-weight: bold; text-shadow: 0 0 8px #2ecc71;
-            cursor: pointer; pointer-events: auto; z-index: 20;
-            font-family: sans-serif;
-            transition: opacity 0.2s;
+            background: none; border: none; color: white; 
+            display: none; font-size: 22px; cursor: pointer; padding: 5px;
+            text-shadow: 0 0 8px #2ecc71; transition: opacity 0.2s;
         }
 
-        .delayed-btn {
-            margin-top: 80px; padding: 10px 20px; background: none; border: 1px solid #666; 
-            color: #888; border-radius: 20px; font-size: 14px; cursor: pointer;
-            opacity: 0; pointer-events: none;
-            transition: opacity 0.5s;
-        }
-        
-        #retry-btn { 
-            margin-top: 25px; padding: 15px 40px; border-radius: 30px; 
-            background: #2ecc71; border: none; font-weight: bold; font-size: 18px; color: #000; cursor: pointer;
-            opacity: 0; pointer-events: none;
-            transition: opacity 0.5s;
-        }
+        /* ボタン調整 */
+        .delayed-btn { margin-top: 80px; padding: 10px 20px; background: none; border: 1px solid #666; color: #888; border-radius: 20px; font-size: 14px; cursor: pointer; opacity: 0; pointer-events: none; transition: opacity 0.5s; }
+        #retry-btn { margin-top: 25px; padding: 15px 40px; border-radius: 30px; background: #2ecc71; border: none; font-weight: bold; font-size: 18px; color: #000; cursor: pointer; opacity: 0; pointer-events: none; transition: opacity 0.5s; }
 
         #deadline { position: absolute; top: 110px; width: 100%; height: 2px; border-top: 2px dashed #e74c3c; opacity: 0.4; z-index: 5; }
         #deadline.danger { opacity: 1; border-top: 2px solid #f00; box-shadow: 0 0 15px #f00; animation: blink-red 0.4s infinite; }
         
-        #next-container { position: absolute; top: 70px; right: 10px; width: 85px; height: 45px; background: rgba(255,255,255,0.1); border-radius: 20px; display: flex; align-items: center; justify-content: space-around; border: 1px solid rgba(255,255,255,0.2); }
-        .next-item { width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; }
-        .next-image { width: 100%; height: 100%; object-fit: contain; image-rendering: pixelated; display: none; }
-        .value { font-size: 24px; font-weight: bold; color: #fff; text-shadow: 0 0 8px #2ecc71; }
-        
         #game-over { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(0,20,0,0.95); color: white; padding: 40px; border-radius: 20px; text-align: center; display: none; z-index: 1000; border: 3px solid #2ecc71; width: 75%; pointer-events: auto; }
-        #loading { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: #000; color: #fff; display: flex; justify-content: center; align-items: center; z-index: 100; }
+        #loading { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: #000; color: #fff; display: flex; justify-content: center; align-items: center; z-index: 200; }
     </style>
 </head>
 <body>
@@ -86,19 +86,30 @@
         <button id="restart-btn-small" class="delayed-btn" onclick="location.reload()">最初からやり直し</button>
     </div>
 
-    <div id="pause-btn" onclick="pauseGame()">⏸</div>
-    <div id="deadline"></div>
-    
     <div id="ui-layer">
-        <div id="score-box"><div style="font-size:10px; color:#aaa;">SCORE</div><div id="score" class="value">0</div></div>
-        <div id="best-box"><div style="font-size:10px; color:#aaa;">BEST</div><div id="best-score" class="value" style="color:#2ecc71;">0</div></div>
-        <div id="timer-box"><div style="font-size:10px; color:#aaa;">TIME</div><div id="timer" class="value">45</div></div>
-        <div id="next-container">
-            <div id="n1-box" class="next-item"><img id="n1-img" class="next-image"></div>
-            <div id="n2-box" class="next-item" style="opacity: 0.3;"><img id="n2-img" class="next-image"></div>
+        <div class="ui-group">
+            <div class="label">SCORE</div>
+            <div id="score" class="value">0</div>
+        </div>
+        <div class="ui-group">
+            <div class="label">BEST</div>
+            <div id="best-score" class="value" style="color:#2ecc71;">0</div>
+        </div>
+        <div class="ui-group" style="text-align: center;">
+            <div class="label">TIME</div>
+            <div id="timer" class="value">45</div>
+        </div>
+        <div id="right-controls">
+            <div id="next-container">
+                <div id="n1-box" class="next-item"><img id="n1-img" class="next-image"></div>
+                <div id="n2-box" class="next-item" style="opacity: 0.3;"><img id="n2-img" class="next-image"></div>
+            </div>
+            <button id="pause-btn" onclick="pauseGame()">⏸</button>
         </div>
     </div>
 
+    <div id="deadline"></div>
+    
     <div id="game-over">
         <div id="new-record" style="display:none; color:#ffeb3b;">✨ NEW RECORD ✨</div>
         <h1 id="over-title" style="margin:0 0 10px 0;">終了</h1>
@@ -184,18 +195,17 @@ function updateUI() {
 function pauseGame() {
     if (isGameOver || isPaused || !gameStarted) return;
     isPaused = true; canResume = false;
-    isDragging = false; // ポーズ時にドラッグ解除
+    isDragging = false; 
     Runner.stop(runner);
     if (audioStatus.bgm) bgm.pause();
     document.getElementById('pause-screen').style.display = 'flex';
-    document.getElementById('pause-btn').style.display = 'none';
+    document.getElementById('pause-btn').style.opacity = '0'; // 消すのではなく不透明度で
     
     setTimeout(() => { canResume = true; }, 500);
     setTimeout(() => { 
         if(isPaused) {
             const btn = document.getElementById('restart-btn-small');
-            btn.style.opacity = '1';
-            btn.style.pointerEvents = 'auto';
+            btn.style.opacity = '1'; btn.style.pointerEvents = 'auto';
         }
     }, 1000);
 }
@@ -208,7 +218,7 @@ function resumeGame(e) {
     currentX = WIDTH / 2;
     currentAngle = 0;
     isDragging = false; 
-    canDrop = false; // 誤落下防止
+    canDrop = false; 
     
     setTimeout(() => { if(!isPaused) canDrop = true; }, 300);
 
@@ -216,19 +226,20 @@ function resumeGame(e) {
     if (audioStatus.bgm) bgm.play();
     
     document.getElementById('pause-screen').style.display = 'none';
-    document.getElementById('pause-btn').style.display = 'flex';
+    document.getElementById('pause-btn').style.opacity = '1';
     
     const btn = document.getElementById('restart-btn-small');
-    btn.style.opacity = '0';
-    btn.style.pointerEvents = 'none';
+    btn.style.opacity = '0'; btn.style.pointerEvents = 'none';
 }
 
 const handleEnd = () => {
     if (isGameOver || !canDrop || isPaused) return;
     if (!gameStarted) { 
-        gameStarted = true; document.getElementById('start-screen').style.display = 'none'; 
-        document.getElementById('pause-btn').style.display = 'flex';
-        if (audioStatus.bgm) bgm.play().catch(()=>{}); obstacleLoop(); 
+        gameStarted = true; 
+        document.getElementById('start-screen').style.display = 'none'; 
+        document.getElementById('pause-btn').style.display = 'block';
+        if (audioStatus.bgm) bgm.play().catch(()=>{}); 
+        obstacleLoop(); 
     }
     if (!isDragging) return;
     isDragging = false; canDrop = false;
@@ -293,8 +304,7 @@ function endGame(reason, isTimeUp) {
     document.getElementById('final-score').innerText = score;
     setTimeout(() => { 
         const btn = document.getElementById('retry-btn');
-        btn.style.opacity = '1';
-        btn.style.pointerEvents = 'auto';
+        btn.style.opacity = '1'; btn.style.pointerEvents = 'auto';
     }, 1500);
 }
 
@@ -316,7 +326,6 @@ Events.on(render, 'afterRender', () => {
     });
     ctx.globalAlpha = 1.0; ctx.globalCompositeOperation = 'source-over';
     
-    // 【修正】落下前のプレビュー描画条件を明確化
     if (gameStarted && !isGameOver && !isPaused && canDrop) {
         const lv = nextQueue[0], radius = (lv + 1) * 16 + 10, targetSize = radius * 2, img = faceImages[lv];
         if (isDragging) { 
@@ -324,11 +333,9 @@ Events.on(render, 'afterRender', () => {
             ctx.strokeStyle = "rgba(46,204,113,0.3)"; ctx.stroke(); ctx.setLineDash([]); 
         }
         ctx.save(); ctx.translate(currentX, 65); ctx.rotate(currentAngle);
-        drawCoin(ctx, img, targetSize); 
-        ctx.restore();
+        drawCoin(ctx, img, targetSize); ctx.restore();
     }
     
-    // 物理ボディの描画
     Composite.allBodies(engine.world).forEach(b => {
         if (b.label === "friend" || b.label === "obs") {
             const targetSize = b.radius * 2, img = (b.label === "obs") ? obstacleImages[b.obsIndex] : faceImages[b.level];
@@ -349,9 +356,15 @@ function obstacleLoop() {
 
 setInterval(() => { if(gameStarted && !isGameOver && !isPaused && timeLeft > 0) { timeLeft--; document.getElementById('timer').innerText = timeLeft; if(timeLeft===0) endGame("タイムアップ！", true); } }, 1000);
 
-const pauseBtnEl = document.getElementById('pause-btn');
-pauseBtnEl.addEventListener('mousedown', (e) => { e.stopPropagation(); });
-pauseBtnEl.addEventListener('touchstart', (e) => { e.stopPropagation(); });
+// ボタン誤爆防止
+const interactiveEls = ['pause-btn', 'next-container'];
+interactiveEls.forEach(id => {
+    const el = document.getElementById(id);
+    if(el){
+        el.addEventListener('mousedown', (e) => e.stopPropagation());
+        el.addEventListener('touchstart', (e) => e.stopPropagation());
+    }
+});
 
 function updateX(e) { 
     if(isPaused || !canDrop) return;
