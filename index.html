@@ -184,6 +184,7 @@ function updateUI() {
 function pauseGame() {
     if (isGameOver || isPaused || !gameStarted) return;
     isPaused = true; canResume = false;
+    isDragging = false; // ポーズ時にドラッグ解除
     Runner.stop(runner);
     if (audioStatus.bgm) bgm.pause();
     document.getElementById('pause-screen').style.display = 'flex';
@@ -199,24 +200,16 @@ function pauseGame() {
     }, 1000);
 }
 
-// 修正：中央に戻し、誤クリック防止
 function resumeGame(e) {
     if (!isPaused || !canResume) return;
-    
-    if (e) {
-        e.stopPropagation();
-        e.preventDefault();
-    }
+    if (e) e.stopPropagation();
 
     isPaused = false;
-    
-    // 中央に戻す
     currentX = WIDTH / 2;
     currentAngle = 0;
     isDragging = false; 
+    canDrop = false; // 誤落下防止
     
-    // 誤落下の防止（0.3秒間は落下不可）
-    canDrop = false;
     setTimeout(() => { if(!isPaused) canDrop = true; }, 300);
 
     Runner.run(runner, engine);
@@ -230,7 +223,7 @@ function resumeGame(e) {
     btn.style.pointerEvents = 'none';
 }
 
-const handleEnd = (e) => {
+const handleEnd = () => {
     if (isGameOver || !canDrop || isPaused) return;
     if (!gameStarted) { 
         gameStarted = true; document.getElementById('start-screen').style.display = 'none'; 
@@ -323,14 +316,19 @@ Events.on(render, 'afterRender', () => {
     });
     ctx.globalAlpha = 1.0; ctx.globalCompositeOperation = 'source-over';
     
-    // コインの描画
-    if (!isGameOver && (isDragging || !isDragging) && !isPaused) {
+    // 【修正】落下前のプレビュー描画条件を明確化
+    if (gameStarted && !isGameOver && !isPaused && canDrop) {
         const lv = nextQueue[0], radius = (lv + 1) * 16 + 10, targetSize = radius * 2, img = faceImages[lv];
-        if (isDragging) { ctx.setLineDash([5, 5]); ctx.beginPath(); ctx.moveTo(currentX, 65); ctx.lineTo(currentX, HEIGHT); ctx.strokeStyle = "rgba(46,204,113,0.3)"; ctx.stroke(); ctx.setLineDash([]); }
+        if (isDragging) { 
+            ctx.setLineDash([5, 5]); ctx.beginPath(); ctx.moveTo(currentX, 65); ctx.lineTo(currentX, HEIGHT); 
+            ctx.strokeStyle = "rgba(46,204,113,0.3)"; ctx.stroke(); ctx.setLineDash([]); 
+        }
         ctx.save(); ctx.translate(currentX, 65); ctx.rotate(currentAngle);
-        drawCoin(ctx, img, targetSize); ctx.restore();
+        drawCoin(ctx, img, targetSize); 
+        ctx.restore();
     }
     
+    // 物理ボディの描画
     Composite.allBodies(engine.world).forEach(b => {
         if (b.label === "friend" || b.label === "obs") {
             const targetSize = b.radius * 2, img = (b.label === "obs") ? obstacleImages[b.obsIndex] : faceImages[b.level];
@@ -356,7 +354,7 @@ pauseBtnEl.addEventListener('mousedown', (e) => { e.stopPropagation(); });
 pauseBtnEl.addEventListener('touchstart', (e) => { e.stopPropagation(); });
 
 function updateX(e) { 
-    if(isPaused || !canDrop) return; // ロック中も動かさない
+    if(isPaused || !canDrop) return;
     const rect = render.canvas.getBoundingClientRect(); 
     const clientX = e.clientX ?? e.touches?.[0].clientX ?? currentX;
     const newX = Math.max(30, Math.min(WIDTH-30, clientX - rect.left));
