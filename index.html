@@ -24,13 +24,14 @@
         
         #game-container canvas {
             image-rendering: pixelated;
-            image-rendering: crisp-edges;
-            image-rendering: -webkit-crisp-edges;
-            image-rendering: -moz-crisp-edges;
         }
 
-        #start-screen { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 50; cursor: pointer; }
-        #start-msg { color: #2ecc71; font-size: 32px; font-weight: bold; text-shadow: 0 0 15px #2ecc71; animation: pulse 1.5s infinite; }
+        /* スクリーン共通設定 */
+        .overlay-screen { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 50; cursor: pointer; }
+        #start-screen { background: rgba(0,0,0,0.85); }
+        #pause-screen { background: rgba(0,0,0,0.7); display: none; z-index: 60; }
+
+        .blink-msg { color: #2ecc71; font-size: 32px; font-weight: bold; text-shadow: 0 0 15px #2ecc71; animation: pulse 1.5s infinite; }
         @keyframes pulse { 0% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.05); opacity: 0.7; } 100% { transform: scale(1); opacity: 1; } }
 
         #ui-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 10; }
@@ -38,35 +39,50 @@
         #best-box { position: absolute; top: 15px; left: 100px; }
         #timer-box { position: absolute; top: 15px; left: 55%; transform: translateX(-50%); text-align: center; }
         
-        #deadline { position: absolute; top: 110px; width: 100%; height: 2px; border-top: 2px dashed #e74c3c; opacity: 0.4; z-index: 5; }
-        #deadline.danger { 
-            opacity: 1; border-top: 2px solid #f00; box-shadow: 0 0 15px #f00; animation: blink-red 0.4s infinite; 
+        /* ポーズボタン */
+        #pause-btn { 
+            position: absolute; top: 15px; right: 15px; width: 40px; height: 40px; 
+            background: rgba(255,255,255,0.2); border: 1px solid rgba(255,255,255,0.4); 
+            border-radius: 10px; color: white; display: none; align-items: center; justify-content: center; 
+            font-size: 20px; cursor: pointer; pointer-events: auto; z-index: 20;
         }
+
+        #restart-btn-small {
+            margin-top: 80px; padding: 10px 20px; background: none; border: 1px solid #666; 
+            color: #888; border-radius: 20px; font-size: 14px; cursor: pointer; display: none;
+        }
+
+        #deadline { position: absolute; top: 110px; width: 100%; height: 2px; border-top: 2px dashed #e74c3c; opacity: 0.4; z-index: 5; }
+        #deadline.danger { opacity: 1; border-top: 2px solid #f00; box-shadow: 0 0 15px #f00; animation: blink-red 0.4s infinite; }
         @keyframes blink-red { 0% { opacity: 1; } 50% { opacity: 0.2; } 100% { opacity: 1; } }
         
-        #next-container { position: absolute; top: 35px; right: 10px; width: 85px; height: 45px; background: rgba(255,255,255,0.1); border-radius: 20px; display: flex; align-items: center; justify-content: space-around; border: 1px solid rgba(255,255,255,0.2); }
+        #next-container { position: absolute; top: 70px; right: 10px; width: 85px; height: 45px; background: rgba(255,255,255,0.1); border-radius: 20px; display: flex; align-items: center; justify-content: space-around; border: 1px solid rgba(255,255,255,0.2); }
         .next-item { width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; }
         .next-image { width: 100%; height: 100%; object-fit: contain; image-rendering: pixelated; display: none; }
         .value { font-size: 24px; font-weight: bold; color: #fff; text-shadow: 0 0 8px #2ecc71; }
         
         #game-over { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(0,20,0,0.95); color: white; padding: 40px; border-radius: 20px; text-align: center; display: none; z-index: 1000; border: 3px solid #2ecc71; width: 75%; pointer-events: auto; }
-        #retry-btn { 
-            display: none; margin-top: 25px; padding: 15px 40px; border-radius: 30px; 
-            background: #2ecc71; border: none; font-weight: bold; font-size: 18px; 
-            color: #000; cursor: pointer; animation: fadeInBtn 0.8s ease-out forwards;
-        }
-        @keyframes fadeInBtn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        #retry-btn { display: none; margin-top: 25px; padding: 15px 40px; border-radius: 30px; background: #2ecc71; border: none; font-weight: bold; font-size: 18px; color: #000; cursor: pointer; }
         #loading { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: #000; color: #fff; display: flex; justify-content: center; align-items: center; z-index: 100; }
     </style>
 </head>
 <body>
 <div id="game-container">
     <div id="loading">DINO LOADING...</div>
-    <div id="start-screen">
-        <div id="start-msg">タップしてスタート</div>
+    
+    <div id="start-screen" class="overlay-screen">
+        <div class="blink-msg">タップしてスタート</div>
         <p style="color: #aaa; margin-top:20px;">青山のことを忘れないでください！</p>
     </div>
+
+    <div id="pause-screen" class="overlay-screen" onclick="resumeGame()">
+        <div class="blink-msg">タップして再開</div>
+        <button id="restart-btn-small" onclick="location.reload()">最初からやり直し</button>
+    </div>
+
+    <div id="pause-btn" onclick="pauseGame()">⏸</div>
     <div id="deadline"></div>
+    
     <div id="ui-layer">
         <div id="score-box"><div style="font-size:10px; color:#aaa;">SCORE</div><div id="score" class="value">0</div></div>
         <div id="best-box"><div style="font-size:10px; color:#aaa;">BEST</div><div id="best-score" class="value" style="color:#2ecc71;">0</div></div>
@@ -76,19 +92,20 @@
             <div id="n2-box" class="next-item" style="opacity: 0.3;"><img id="n2-img" class="next-image"></div>
         </div>
     </div>
+
     <div id="game-over">
-        <h1 id="over-title" style="margin:0 0 10px 0;">ありがとう</h1>
-        <p id="over-reason" style="margin-bottom:20px; color:#ccc;"></p>
         <div id="new-record" style="display:none; color:#ffeb3b;">✨ NEW RECORD ✨</div>
+        <h1 id="over-title" style="margin:0 0 10px 0;">終了</h1>
+        <p id="over-reason" style="margin-bottom:20px; color:#ccc;"></p>
         <div id="final-score" class="value" style="font-size:48px;">0</div>
-        <button id="retry-btn" onclick="location.reload()">もういちど！</button>
+        <button id="retry-btn" onclick="location.reload()">もう一度遊ぶ</button>
     </div>
 </div>
 
 <script>
 // 音源設定
 const audioStatus = { bgm: true, rotate: true, merge: true, disappear: true, final: true };
-const bgm = new Audio('bgm.mp3'); bgm.loop = false;
+const bgm = new Audio('bgm.mp3');
 const seRotate = new Audio('rotate.mp3');
 const seMerge = new Audio('merge.mp3');
 const seDisappear = new Audio('disappear.mp3');
@@ -99,12 +116,8 @@ const seFinal = new Audio('final.mp3');
 
 function playSE(audio, id) { if (!audioStatus[id]) return; const clone = audio.cloneNode(); clone.play().catch(()=>{}); }
 
-// 設定・変数
-const EMOJIS = ["🥚", "🦴", "🌿", "🦕", "REX", "👑"]; 
-const FACE_IMAGE_SOURCES = EMOJIS.map((_, i) => `images/face_${i}.png`);
-const OBSTACLE_IMAGE_SOURCES = Array.from({length: 11}, (_, i) => `images/obs_${i}.png`);
+// 変数
 const PASSWORD = "968";
-
 if (!sessionStorage.getItem("auth_ok")) {
     const input = prompt("パスワード");
     if (input === PASSWORD) sessionStorage.setItem("auth_ok", "true");
@@ -113,25 +126,23 @@ if (!sessionStorage.getItem("auth_ok")) {
 
 const { Engine, Render, Runner, World, Bodies, Events, Composite, Vector, Body } = Matter;
 const WIDTH = 375, HEIGHT = 667, LIMIT_Y = 110;
-const faceImages = [], faceImageReady = [], obstacleImages = [], obstacleImageReady = [];
+const faceImages = [], obstacleImages = [], faceImageReady = [], obstacleImageReady = [];
 let score = 0, highScore = parseInt(localStorage.getItem('suika_high_score')) || 0;
-let timeLeft = 45, isGameOver = false, gameStarted = false;
+let timeLeft = 45, isGameOver = false, gameStarted = false, isPaused = false, canResume = false;
 let nextQueue = [0, 0, 0].map(() => Math.floor(Math.random() * 3));
-
-let isDragging = false, currentX = WIDTH/2, currentAngle = 0, lastSoundX = WIDTH/2;
-let canDrop = true, overLineStartTime = null;
-let particles = [];
-let activeBigExplosion = false; // 大爆発中フラグ
+let isDragging = false, currentX = WIDTH/2, currentAngle = 0, lastSoundX = WIDTH/2, canDrop = true, overLineStartTime = null;
+let particles = [], activeBigExplosion = false;
 
 const engine = Engine.create();
+const runner = Runner.create();
 const render = Render.create({ element: document.getElementById('game-container'), engine: engine, options: { width: WIDTH, height: HEIGHT, wireframes: false, background: 'transparent' } });
 engine.world.gravity.scale *= 1.5; 
 
 function preloadImages(callback) {
-    let loaded = 0; const total = FACE_IMAGE_SOURCES.length + OBSTACLE_IMAGE_SOURCES.length;
+    let loaded = 0; const total = 6 + 11;
     const check = () => { if (++loaded === total) { document.getElementById('loading').style.display='none'; callback(); } };
-    FACE_IMAGE_SOURCES.forEach((src, i) => { const img = new Image(); img.src = src; img.onload = () => { faceImages[i]=img; faceImageReady[i]=true; check(); }; img.onerror = () => { faceImageReady[i]=false; checkDone(); }; });
-    OBSTACLE_IMAGE_SOURCES.forEach((src, i) => { const img = new Image(); img.src = src; img.onload = () => { obstacleImages[i]=img; obstacleImageReady[i]=true; check(); }; img.onerror = () => { obstacleImageReady[i]=false; check(); }; });
+    for(let i=0; i<6; i++) { const img = new Image(); img.src = `images/face_${i}.png`; img.onload = () => { faceImages[i]=img; faceImageReady[i]=true; check(); }; img.onerror = check; }
+    for(let i=0; i<11; i++) { const img = new Image(); img.src = `images/obs_${i}.png`; img.onload = () => { obstacleImages[i]=img; obstacleImageReady[i]=true; check(); }; img.onerror = check; }
 }
 
 World.add(engine.world, [
@@ -143,10 +154,8 @@ World.add(engine.world, [
 function spawn(x, y, level, isObstacle = false, sizeOverride = null) {
     const radius = isObstacle ? (sizeOverride || 20) : (level + 1) * 16 + 10;
     const body = Bodies.circle(x, y, radius, { 
-        restitution: 0.4, friction: 0.1, slop: 0,
-        label: isObstacle ? "obs" : "friend", level: level, 
-        obsIndex: Math.floor(Math.random() * OBSTACLE_IMAGE_SOURCES.length),
-        render: { visible: false } 
+        restitution: 0.4, friction: 0.1, label: isObstacle ? "obs" : "friend", level: level, 
+        obsIndex: Math.floor(Math.random() * 11), render: { visible: false } 
     });
     body.radius = radius;
     if (!isObstacle) Body.setAngle(body, currentAngle);
@@ -154,91 +163,90 @@ function spawn(x, y, level, isObstacle = false, sizeOverride = null) {
     return body;
 }
 
-// パーティクル生成（エフェクト）
 function createEffect(x, y, color, count = 20, speed = 10, decayBase = 0.02) {
     for (let i = 0; i < count; i++) {
-        particles.push({ 
-            x, y, vx: (Math.random()-0.5)*speed, vy: (Math.random()-0.5)*speed - (speed/4), 
-            size: Math.random()*6+2, color: color, life: 1.0, 
-            decay: Math.random()*0.02 + decayBase 
-        });
+        particles.push({ x, y, vx: (Math.random()-0.5)*speed, vy: (Math.random()-0.5)*speed - (speed/4), size: Math.random()*6+2, color: color, life: 1.0, decay: Math.random()*0.02 + decayBase });
     }
 }
 
 function updateUI() {
     [1, 2].forEach(i => {
         const level = nextQueue[i], imgEl = document.getElementById(`n${i}-img`);
-        if (faceImageReady[level]) { imgEl.src = FACE_IMAGE_SOURCES[level]; imgEl.style.display = "block"; }
+        if (faceImageReady[level]) { imgEl.src = `images/face_${level}.png`; imgEl.style.display = "block"; }
     });
     document.getElementById('score').innerText = score;
     document.getElementById('best-score').innerText = highScore;
 }
 
+// ポーズ機能
+function pauseGame() {
+    if (isGameOver || isPaused || !gameStarted) return;
+    isPaused = true; canResume = false;
+    Runner.stop(runner);
+    if (audioStatus.bgm) bgm.pause();
+    document.getElementById('pause-screen').style.display = 'flex';
+    document.getElementById('pause-btn').style.display = 'none';
+    
+    // 0.5秒の再開ガード
+    setTimeout(() => { canResume = true; }, 500);
+    // 1秒後にやり直しボタン表示
+    setTimeout(() => { if(isPaused) document.getElementById('restart-btn-small').style.display = 'block'; }, 1000);
+}
+
+function resumeGame() {
+    if (!isPaused || !canResume) return;
+    isPaused = false;
+    Runner.run(runner, engine);
+    if (audioStatus.bgm) bgm.play();
+    document.getElementById('pause-screen').style.display = 'none';
+    document.getElementById('pause-btn').style.display = 'flex';
+    document.getElementById('restart-btn-small').style.display = 'none';
+}
+
 const handleEnd = () => {
-    if (isGameOver || !canDrop) return;
+    if (isGameOver || !canDrop || isPaused) return;
     if (!gameStarted) { 
         gameStarted = true; document.getElementById('start-screen').style.display = 'none'; 
+        document.getElementById('pause-btn').style.display = 'flex';
         if (audioStatus.bgm) bgm.play().catch(()=>{}); obstacleLoop(); 
     }
     if (!isDragging) return;
     isDragging = false; canDrop = false;
-    
     const body = spawn(currentX, 65, nextQueue.shift());
-    // ドロップ時のゆるやかな回転
     Body.setAngularVelocity(body, (Math.random() - 0.5) * 0.08);
-
     nextQueue.push(Math.floor(Math.random() * 3));
-    updateUI();
-    currentAngle = 0;
+    updateUI(); currentAngle = 0;
     setTimeout(() => { canDrop = true; }, 500);
 };
 
-// 合体
 Events.on(engine, 'collisionStart', (event) => {
     event.pairs.forEach(pair => {
         const { bodyA, bodyB } = pair;
         if (bodyA.label === "friend" && bodyB.label === "friend" && bodyA.level === bodyB.level && !bodyA.isDeleting && !bodyB.isDeleting) {
             const level = bodyA.level; if (level >= 5) return;
-            const nx = (bodyA.position.x + bodyB.position.x) / 2;
-            const ny = (bodyA.position.y + bodyB.position.y) / 2;
+            const nx = (bodyA.position.x + bodyB.position.x) / 2, ny = (bodyA.position.y + bodyB.position.y) / 2;
             bodyA.isDeleting = bodyB.isDeleting = true;
             World.remove(engine.world, [bodyA, bodyB]);
-            
             if (level < 4) { 
                 const nextBody = spawn(nx, ny, level + 1); 
-                // ピョコンと跳ねる演出
                 Body.setVelocity(nextBody, { x: (Math.random() - 0.5) * 3, y: -7 });
                 Body.setAngularVelocity(nextBody, (Math.random() - 0.5) * 0.15);
-                
                 if (!isGameOver) { playSE(seMerge, 'merge'); createEffect(nx, ny, "#ffffff", 15, 8); score += (level + 1) * 100; document.getElementById('score').innerText = score; }
             } else {
-                // 最終段階生成演出
                 const crown = spawn(nx, ny - 30, 5); crown.isFinal = true;
                 Body.setVelocity(crown, { x: (Math.random()-0.5)*15, y: -25 });
                 Body.setAngularVelocity(crown, (Math.random() - 0.5) * 0.3);
-                
-                if (!isGameOver) { 
-                    playSE(seFinal, 'final');
-                    createEffect(nx, ny, "#ffffff", 25, 12); score += 5000; document.getElementById('score').innerText = score; 
-                }
+                if (!isGameOver) { playSE(seFinal, 'final'); createEffect(nx, ny, "#ffffff", 25, 12); score += 5000; document.getElementById('score').innerText = score; }
                 setTimeout(() => {
-                    playSE(seDisappear, 'disappear');
-                    
-                    activeBigExplosion = true; // 加算合成モードON
-                    const ex = crown.position.x;
-                    const ey = crown.position.y;
-                    
-                    createEffect(ex, ey, "#ffffff", 150, 25, 0.01); // 白・核
-                    createEffect(ex, ey, "#ffeb3b", 150, 28, 0.01); // 黄・光
-                    createEffect(ex, ey, "#2ecc71", 150, 26, 0.01); // 緑・フレア
-                    
-                    // 1.5秒後に加算合成モードをOFFにする
+                    playSE(seDisappear, 'disappear'); activeBigExplosion = true;
+                    createEffect(crown.position.x, crown.position.y, "#ffffff", 150, 25, 0.01);
+                    createEffect(crown.position.x, crown.position.y, "#ffeb3b", 150, 28, 0.01);
+                    createEffect(crown.position.x, crown.position.y, "#2ecc71", 150, 26, 0.01);
                     setTimeout(() => activeBigExplosion = false, 1500);
-
                     World.remove(engine.world, crown);
                     Composite.allBodies(engine.world).forEach(b => {
                         if (b.label === "obs" && Vector.magnitude(Vector.sub(b.position, crown.position)) < 250) {
-                            World.remove(engine.world, b); if (!isGameOver) { score += 500; document.getElementById('score').innerText = score; }
+                            World.remove(engine.world, b); if (!isGameOver) score += 500;
                         }
                     });
                 }, 1500);
@@ -248,7 +256,7 @@ Events.on(engine, 'collisionStart', (event) => {
 });
 
 Events.on(engine, 'afterUpdate', () => {
-    if (isGameOver || !gameStarted) return;
+    if (isGameOver || !gameStarted || isPaused) return;
     particles.forEach((p, i) => { p.x += p.vx; p.y += p.vy; p.vy += 0.15; p.life -= p.decay; if(p.life <= 0) particles.splice(i, 1); });
     const bodies = Composite.allBodies(engine.world);
     let highestY = 999;
@@ -257,12 +265,13 @@ Events.on(engine, 'afterUpdate', () => {
     if (highestY < LIMIT_Y) {
         dl.classList.add('danger');
         if (!overLineStartTime) overLineStartTime = Date.now();
-        if ((Date.now() - overLineStartTime) / 1000 > 3) endGame("いっぱいになった...", false);
+        if ((Date.now() - overLineStartTime) / 1000 > 3) endGame("絶滅しました...", false);
     } else { dl.classList.remove('danger'); overLineStartTime = null; }
 });
 
 function endGame(reason, isTimeUp) {
     if (isGameOver) return; isGameOver = true;
+    document.getElementById('pause-btn').style.display = 'none';
     if (!isTimeUp && audioStatus.bgm) { bgm.pause(); bgm.currentTime = 0; }
     if (score > highScore) { highScore = score; localStorage.setItem('suika_high_score', highScore); document.getElementById('new-record').style.display='block'; }
     document.getElementById('game-over').style.display='block'; document.getElementById('over-reason').innerText = reason;
@@ -270,69 +279,43 @@ function endGame(reason, isTimeUp) {
     setTimeout(() => { document.getElementById('retry-btn').style.display = 'inline-block'; }, 1500);
 }
 
-// レンダリング
 Events.on(render, 'afterRender', () => {
     const ctx = render.context;
+    if (activeBigExplosion) ctx.globalCompositeOperation = 'lighter';
+    particles.forEach(p => { ctx.fillStyle = p.color; ctx.globalAlpha = p.life; ctx.fillRect(p.x - p.size/2, p.y - p.size/2, p.size, p.size); });
+    ctx.globalAlpha = 1.0; ctx.globalCompositeOperation = 'source-over';
     
-    // パーティクルの描画（ピクセル四角形）
-    // 【強化】大爆発時は加算合成で描画
-    if (activeBigExplosion) {
-        ctx.globalCompositeOperation = 'lighter';
-    }
-    
-    particles.forEach(p => { 
-        ctx.fillStyle = p.color; 
-        ctx.globalAlpha = p.life; 
-
-        if (activeBigExplosion && Math.random() > 0.5) {
-             ctx.globalAlpha = p.life * 0.7;
-        }
-        ctx.fillRect(p.x - p.size/2, p.y - p.size/2, p.size, p.size); 
-    });
-    
-    // 描画モードを元に戻す
-    ctx.globalAlpha = 1.0;
-    ctx.globalCompositeOperation = 'source-over';
-    
-    if (!isGameOver && canDrop) {
-        const lv = nextQueue[0]; const radius = (lv + 1) * 16 + 10; const targetSize = radius * 2.2; const img = faceImages[lv];
+    if (!isGameOver && canDrop && !isPaused) {
+        const lv = nextQueue[0], radius = (lv + 1) * 16 + 10, targetSize = radius * 2.2, img = faceImages[lv];
         if (isDragging) { ctx.setLineDash([5, 5]); ctx.beginPath(); ctx.moveTo(currentX, 65); ctx.lineTo(currentX, HEIGHT); ctx.strokeStyle = "rgba(46,204,113,0.3)"; ctx.stroke(); ctx.setLineDash([]); }
         ctx.save(); ctx.translate(currentX, 65); ctx.rotate(currentAngle);
-        if (img && img.complete) {
-            const asp = img.naturalWidth / img.naturalHeight;
-            let dw = asp > 1 ? targetSize : targetSize * asp; let dh = asp > 1 ? targetSize / asp : targetSize;
-            ctx.drawImage(img, -dw/2, -dh/2, dw, dh);
-        }
+        if (img) ctx.drawImage(img, -targetSize/2, -targetSize/2, targetSize, targetSize);
         ctx.restore();
     }
     
     Composite.allBodies(engine.world).forEach(b => {
         if (b.label === "friend" || b.label === "obs") {
-            const targetSize = b.radius * 2.2; const img = (b.label === "obs") ? obstacleImages[b.obsIndex] : faceImages[b.level];
+            const targetSize = b.radius * 2.2, img = (b.label === "obs") ? obstacleImages[b.obsIndex] : faceImages[b.level];
             ctx.save(); ctx.translate(b.position.x, b.position.y); ctx.rotate(b.angle);
             if (b.isFinal) { ctx.shadowColor = '#fff'; ctx.shadowBlur = 30 + Math.sin(Date.now()/100)*15; } 
-            if (img && img.complete) {
-                const asp = img.naturalWidth / img.naturalHeight;
-                let dw = asp > 1 ? targetSize : targetSize * asp; let dh = asp > 1 ? targetSize / asp : targetSize;
-                ctx.drawImage(img, -dw/2, -dh/2, dw, dh);
-            }
+            if (img) ctx.drawImage(img, -targetSize/2, -targetSize/2, targetSize, targetSize);
             ctx.restore();
         }
     });
 });
 
-// オジャマ密度のロジック
 function obstacleLoop() {
-    if (isGameOver) return;
+    if (isGameOver || isPaused) { if(isPaused) setTimeout(obstacleLoop, 500); return; }
     let d = timeLeft <= 10 ? 300 : (timeLeft <= 30 ? 800 : 1800);
     let size = 20 + (45 - timeLeft) * 0.8; 
     if (timeLeft <= 42) spawn(Math.random()*(WIDTH-60)+30, -50, 0, true, size);
     setTimeout(obstacleLoop, d);
 }
 
-setInterval(() => { if(gameStarted && !isGameOver && timeLeft > 0) { timeLeft--; document.getElementById('timer').innerText = timeLeft; if(timeLeft===0) endGame("ゲームクリア！", true); } }, 1000);
+setInterval(() => { if(gameStarted && !isGameOver && !isPaused && timeLeft > 0) { timeLeft--; document.getElementById('timer').innerText = timeLeft; if(timeLeft===0) endGame("タイムアップ！", true); } }, 1000);
 
 function updateX(e) { 
+    if(isPaused) return;
     const rect = render.canvas.getBoundingClientRect(); 
     const clientX = e.clientX ?? e.touches?.[0].clientX ?? currentX;
     const newX = Math.max(30, Math.min(WIDTH-30, clientX - rect.left));
@@ -340,14 +323,14 @@ function updateX(e) {
     if (Math.abs(currentX - lastSoundX) > 15) { playSE(seRotate, 'rotate'); lastSoundX = currentX; }
 }
 
-window.addEventListener('mousedown', (e) => { if(!isGameOver && canDrop) { isDragging = true; updateX(e); } });
-window.addEventListener('mousemove', (e) => { if(isDragging) updateX(e); });
+window.addEventListener('mousedown', (e) => { if(!isGameOver && canDrop && !isPaused) { isDragging = true; updateX(e); } });
+window.addEventListener('mousemove', updateX);
 window.addEventListener('mouseup', handleEnd);
-window.addEventListener('touchstart', (e) => { if(!isGameOver && canDrop) { isDragging = true; updateX(e); } }, {passive: false});
-window.addEventListener('touchmove', (e) => { if(isDragging) updateX(e); }, {passive: false});
+window.addEventListener('touchstart', (e) => { if(!isGameOver && canDrop && !isPaused) { isDragging = true; updateX(e); } }, {passive: false});
+window.addEventListener('touchmove', updateX, {passive: false});
 window.addEventListener('touchend', handleEnd);
 
-preloadImages(() => { updateUI(); Render.run(render); Runner.run(Runner.create(), engine); });
+preloadImages(() => { updateUI(); Render.run(render); Runner.run(runner, engine); });
 </script>
 </body>
 </html>
