@@ -46,18 +46,17 @@
             transition: opacity 0.2s;
         }
 
-        /* 【修正】ボタンのレイアウト固定用スタイル */
         .delayed-btn {
             margin-top: 80px; padding: 10px 20px; background: none; border: 1px solid #666; 
             color: #888; border-radius: 20px; font-size: 14px; cursor: pointer;
-            opacity: 0; pointer-events: none; /* 最初は透明でクリック不可、でも場所は取る */
+            opacity: 0; pointer-events: none;
             transition: opacity 0.5s;
         }
         
         #retry-btn { 
             margin-top: 25px; padding: 15px 40px; border-radius: 30px; 
             background: #2ecc71; border: none; font-weight: bold; font-size: 18px; color: #000; cursor: pointer;
-            opacity: 0; pointer-events: none; /* レイアウト崩れ防止 */
+            opacity: 0; pointer-events: none;
             transition: opacity 0.5s;
         }
 
@@ -82,7 +81,7 @@
         <p style="color: #aaa; margin-top:20px;">青山のことを忘れないでください！</p>
     </div>
 
-    <div id="pause-screen" class="overlay-screen" onclick="resumeGame()">
+    <div id="pause-screen" class="overlay-screen" onclick="resumeGame(event)">
         <div class="blink-msg">タップして再開</div>
         <button id="restart-btn-small" class="delayed-btn" onclick="location.reload()">最初からやり直し</button>
     </div>
@@ -191,7 +190,6 @@ function pauseGame() {
     document.getElementById('pause-btn').style.display = 'none';
     
     setTimeout(() => { canResume = true; }, 500);
-    // 【修正】不透明度で表示させ、クリック可能にする
     setTimeout(() => { 
         if(isPaused) {
             const btn = document.getElementById('restart-btn-small');
@@ -201,20 +199,38 @@ function pauseGame() {
     }, 1000);
 }
 
-function resumeGame() {
+// 修正：中央に戻し、誤クリック防止
+function resumeGame(e) {
     if (!isPaused || !canResume) return;
+    
+    if (e) {
+        e.stopPropagation();
+        e.preventDefault();
+    }
+
     isPaused = false;
+    
+    // 中央に戻す
+    currentX = WIDTH / 2;
+    currentAngle = 0;
+    isDragging = false; 
+    
+    // 誤落下の防止（0.3秒間は落下不可）
+    canDrop = false;
+    setTimeout(() => { if(!isPaused) canDrop = true; }, 300);
+
     Runner.run(runner, engine);
     if (audioStatus.bgm) bgm.play();
+    
     document.getElementById('pause-screen').style.display = 'none';
     document.getElementById('pause-btn').style.display = 'flex';
-    // 隠しておく
+    
     const btn = document.getElementById('restart-btn-small');
     btn.style.opacity = '0';
     btn.style.pointerEvents = 'none';
 }
 
-const handleEnd = () => {
+const handleEnd = (e) => {
     if (isGameOver || !canDrop || isPaused) return;
     if (!gameStarted) { 
         gameStarted = true; document.getElementById('start-screen').style.display = 'none'; 
@@ -282,7 +298,6 @@ function endGame(reason, isTimeUp) {
     if (score > highScore) { highScore = score; localStorage.setItem('suika_high_score', highScore); document.getElementById('new-record').style.display='block'; }
     document.getElementById('game-over').style.display='block'; document.getElementById('over-reason').innerText = reason;
     document.getElementById('final-score').innerText = score;
-    // 【修正】リトライボタンを不透明にして表示
     setTimeout(() => { 
         const btn = document.getElementById('retry-btn');
         btn.style.opacity = '1';
@@ -307,12 +322,15 @@ Events.on(render, 'afterRender', () => {
         ctx.fillRect(p.x - p.size/2, p.y - p.size/2, p.size, p.size);
     });
     ctx.globalAlpha = 1.0; ctx.globalCompositeOperation = 'source-over';
-    if (!isGameOver && canDrop && !isPaused) {
+    
+    // コインの描画
+    if (!isGameOver && (isDragging || !isDragging) && !isPaused) {
         const lv = nextQueue[0], radius = (lv + 1) * 16 + 10, targetSize = radius * 2, img = faceImages[lv];
         if (isDragging) { ctx.setLineDash([5, 5]); ctx.beginPath(); ctx.moveTo(currentX, 65); ctx.lineTo(currentX, HEIGHT); ctx.strokeStyle = "rgba(46,204,113,0.3)"; ctx.stroke(); ctx.setLineDash([]); }
         ctx.save(); ctx.translate(currentX, 65); ctx.rotate(currentAngle);
         drawCoin(ctx, img, targetSize); ctx.restore();
     }
+    
     Composite.allBodies(engine.world).forEach(b => {
         if (b.label === "friend" || b.label === "obs") {
             const targetSize = b.radius * 2, img = (b.label === "obs") ? obstacleImages[b.obsIndex] : faceImages[b.level];
@@ -338,7 +356,7 @@ pauseBtnEl.addEventListener('mousedown', (e) => { e.stopPropagation(); });
 pauseBtnEl.addEventListener('touchstart', (e) => { e.stopPropagation(); });
 
 function updateX(e) { 
-    if(isPaused) return;
+    if(isPaused || !canDrop) return; // ロック中も動かさない
     const rect = render.canvas.getBoundingClientRect(); 
     const clientX = e.clientX ?? e.touches?.[0].clientX ?? currentX;
     const newX = Math.max(30, Math.min(WIDTH-30, clientX - rect.left));
