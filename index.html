@@ -86,7 +86,7 @@
 </head>
 <body>
 <div id="game-container">
-    <div id="loading">DINO LOADING...</div>
+    <div id="loading">LOADING...</div>
     
     <div id="start-screen" class="overlay-screen">
         <div class="blink-msg">タップしてスタート</div>
@@ -127,10 +127,10 @@
     
     <div id="game-over">
         <div id="new-record" style="display:none; color:#ffeb3b;">✨ NEW RECORD ✨</div>
-        <h1 id="over-title" style="margin:0 0 10px 0;">終了</h1>
+        <h1 id="over-title" style="margin:0 0 10px 0;">ありがとう</h1>
         <p id="over-reason" style="margin-bottom:20px; color:#ccc;"></p>
         <div id="final-score" class="value" style="font-size:48px;">0</div>
-        <button id="retry-btn" onclick="location.reload()">もう一度遊ぶ</button>
+        <button id="retry-btn" onclick="location.reload()">もういちど！</button>
     </div>
 </div>
 
@@ -149,7 +149,7 @@ function playSE(audio, id) { if (!audioStatus[id]) return; const clone = audio.c
 
 const PASSWORD = "968";
 if (!sessionStorage.getItem("auth_ok")) {
-    const input = prompt("パスワード");
+    const input = prompt("パスワードを入力してください（半角数字3ケタ）");
     if (input === PASSWORD) sessionStorage.setItem("auth_ok", "true");
     else { document.body.innerHTML = "Access Denied"; throw new Error(); }
 }
