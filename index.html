@@ -182,7 +182,7 @@ World.add(engine.world, [
 
 function spawn(x, y, level, isObstacle = false, sizeOverride = null) {
     const radius = isObstacle ? (sizeOverride || 20) : (level + 1) * 16 + 10;
-    const body = Bodies.circle(x, y, radius, { restitution: 0.4, friction: 0.1, label: isObstacle ? "obs" : "friend", level: level, obsIndex: Math.floor(Math.random() * 11), render: { visible: false } });
+    const body = Bodies.circle(x, y, radius, { restitution: 0.4, friction: 0.1, label: isObstacle ? "obs" : "friend", level: level, obsIndex: Math.floor(Math.random() * 14), render: { visible: false } });
     body.radius = radius;
     if (!isObstacle) Body.setAngle(body, currentAngle);
     World.add(engine.world, body);
