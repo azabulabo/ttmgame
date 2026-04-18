@@ -34,30 +34,42 @@
 
         /* UIレイヤーの横一列レイアウト */
         #ui-layer { 
-            position: absolute; top: 0; left: 0; width: 100%; height: 60px; 
+            position: absolute; top: 0; left: 0; width: 100%; height: 75px; /* ラベル追加に伴い少し高さを確保 */
             padding: 10px 15px; box-sizing: border-box;
-            display: flex; align-items: center; justify-content: space-between;
+            display: flex; align-items: flex-start; /* 上揃えに変更 */
+            justify-content: space-between;
             pointer-events: none; z-index: 10;
         }
         
-        .ui-group { display: flex; flex-direction: column; justify-content: center; }
+        .ui-group { display: flex; flex-direction: column; justify-content: center; margin-top: 5px; /* 他のUIを少し下げる */}
         .label { font-size: 10px; color: #aaa; margin-bottom: 2px; }
         .value { font-size: 20px; font-weight: bold; color: #fff; text-shadow: 0 0 8px #2ecc71; line-height: 1; }
 
         /* Nextとポーズボタンの右側セット */
-        #right-controls { display: flex; align-items: center; pointer-events: auto; }
+        #right-controls { display: flex; align-items: flex-end; /* 下揃え */ pointer-events: auto; }
         
+        /* 【修正】Next全体のラッパー */
+        #next-wrapper {
+            display: flex; flex-direction: column; align-items: flex-start; margin-right: 12px;
+        }
+
+        /* 【新設】Nextラベルのスタイル（枠外、左側コインの上） */
+        .next-label {
+            font-size: 11px; font-weight: bold; color: #fff; text-shadow: 0 0 8px #2ecc71;
+            margin-bottom: 3px; margin-left: 8px; /* 左側コイン（n1-box）の位置に合わせる */
+        }
+
         #next-container { 
             width: 70px; height: 35px; background: rgba(255,255,255,0.1); 
             border-radius: 10px; display: flex; align-items: center; justify-content: space-around; 
-            border: 1px solid rgba(255,255,255,0.2); margin-right: 12px;
+            border: 1px solid rgba(255,255,255,0.2);
         }
         .next-item { width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; }
         .next-image { width: 100%; height: 100%; object-fit: contain; image-rendering: pixelated; display: none; }
 
         #pause-btn { 
             background: none; border: none; color: white; 
-            display: none; font-size: 22px; cursor: pointer; padding: 5px;
+            font-size: 22px; cursor: pointer; padding: 5px; margin-bottom: -3px; /* 微調整 */
             text-shadow: 0 0 8px #2ecc71; transition: opacity 0.2s;
         }
 
@@ -100,9 +112,12 @@
             <div id="timer" class="value">45</div>
         </div>
         <div id="right-controls">
-            <div id="next-container">
-                <div id="n1-box" class="next-item"><img id="n1-img" class="next-image"></div>
-                <div id="n2-box" class="next-item" style="opacity: 0.3;"><img id="n2-img" class="next-image"></div>
+            <div id="next-wrapper">
+                <div class="next-label">Next</div>
+                <div id="next-container">
+                    <div id="n1-box" class="next-item"><img id="n1-img" class="next-image"></div>
+                    <div id="n2-box" class="next-item" style="opacity: 0.3;"><img id="n2-img" class="next-image"></div>
+                </div>
             </div>
             <button id="pause-btn" onclick="pauseGame()">⏸</button>
         </div>
@@ -199,7 +214,9 @@ function pauseGame() {
     Runner.stop(runner);
     if (audioStatus.bgm) bgm.pause();
     document.getElementById('pause-screen').style.display = 'flex';
-    document.getElementById('pause-btn').style.opacity = '0'; // 消すのではなく不透明度で
+    // ⏸ボタンエリアを非表示に
+    document.getElementById('right-controls').style.pointerEvents = 'none';
+    document.getElementById('pause-btn').style.opacity = '0';
     
     setTimeout(() => { canResume = true; }, 500);
     setTimeout(() => { 
@@ -226,6 +243,8 @@ function resumeGame(e) {
     if (audioStatus.bgm) bgm.play();
     
     document.getElementById('pause-screen').style.display = 'none';
+    // ⏸ボタンエリアを表示に
+    document.getElementById('right-controls').style.pointerEvents = 'auto';
     document.getElementById('pause-btn').style.opacity = '1';
     
     const btn = document.getElementById('restart-btn-small');
@@ -237,7 +256,8 @@ const handleEnd = () => {
     if (!gameStarted) { 
         gameStarted = true; 
         document.getElementById('start-screen').style.display = 'none'; 
-        document.getElementById('pause-btn').style.display = 'block';
+        // 開始時のみpause-btnを表示（ui-layer全体ではなくpause-btn単体）
+        document.getElementById('pause-btn').style.display = 'block'; 
         if (audioStatus.bgm) bgm.play().catch(()=>{}); 
         obstacleLoop(); 
     }
@@ -326,6 +346,7 @@ Events.on(render, 'afterRender', () => {
     });
     ctx.globalAlpha = 1.0; ctx.globalCompositeOperation = 'source-over';
     
+    // 【修正】落下判定中でない（=一時停止ガード中を含む）場合はプレビューを描画しない
     if (gameStarted && !isGameOver && !isPaused && canDrop) {
         const lv = nextQueue[0], radius = (lv + 1) * 16 + 10, targetSize = radius * 2, img = faceImages[lv];
         if (isDragging) { 
@@ -357,7 +378,7 @@ function obstacleLoop() {
 setInterval(() => { if(gameStarted && !isGameOver && !isPaused && timeLeft > 0) { timeLeft--; document.getElementById('timer').innerText = timeLeft; if(timeLeft===0) endGame("タイムアップ！", true); } }, 1000);
 
 // ボタン誤爆防止
-const interactiveEls = ['pause-btn', 'next-container'];
+const interactiveEls = ['restart-btn-small', 'retry-btn'];
 interactiveEls.forEach(id => {
     const el = document.getElementById(id);
     if(el){
