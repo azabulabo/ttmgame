@@ -34,29 +34,26 @@
 
         /* UIレイヤーの横一列レイアウト */
         #ui-layer { 
-            position: absolute; top: 0; left: 0; width: 100%; height: 75px; /* ラベル追加に伴い少し高さを確保 */
+            position: absolute; top: 0; left: 0; width: 100%; height: 75px; 
             padding: 10px 15px; box-sizing: border-box;
-            display: flex; align-items: flex-start; /* 上揃えに変更 */
+            display: flex; align-items: flex-start; 
             justify-content: space-between;
             pointer-events: none; z-index: 10;
         }
         
-        .ui-group { display: flex; flex-direction: column; justify-content: center; margin-top: 5px; /* 他のUIを少し下げる */}
+        .ui-group { display: flex; flex-direction: column; justify-content: center; margin-top: 5px; }
         .label { font-size: 10px; color: #aaa; margin-bottom: 2px; }
         .value { font-size: 20px; font-weight: bold; color: #fff; text-shadow: 0 0 8px #2ecc71; line-height: 1; }
 
-        /* Nextとポーズボタンの右側セット */
-        #right-controls { display: flex; align-items: flex-end; /* 下揃え */ pointer-events: auto; }
+        #right-controls { display: flex; align-items: flex-end; pointer-events: auto; }
         
-        /* 【修正】Next全体のラッパー */
         #next-wrapper {
             display: flex; flex-direction: column; align-items: flex-start; margin-right: 12px;
         }
 
-        /* 【新設】Nextラベルのスタイル（枠外、左側コインの上） */
         .next-label {
             font-size: 11px; font-weight: bold; color: #fff; text-shadow: 0 0 8px #2ecc71;
-            margin-bottom: 3px; margin-left: 8px; /* 左側コイン（n1-box）の位置に合わせる */
+            margin-bottom: 3px; margin-left: 8px; 
         }
 
         #next-container { 
@@ -69,11 +66,10 @@
 
         #pause-btn { 
             background: none; border: none; color: white; 
-            font-size: 22px; cursor: pointer; padding: 5px; margin-bottom: -3px; /* 微調整 */
+            font-size: 22px; cursor: pointer; padding: 5px; margin-bottom: -3px; 
             text-shadow: 0 0 8px #2ecc71; transition: opacity 0.2s;
         }
 
-        /* ボタン調整 */
         .delayed-btn { margin-top: 80px; padding: 10px 20px; background: none; border: 1px solid #666; color: #888; border-radius: 20px; font-size: 14px; cursor: pointer; opacity: 0; pointer-events: none; transition: opacity 0.5s; }
         #retry-btn { margin-top: 25px; padding: 15px 40px; border-radius: 30px; background: #2ecc71; border: none; font-weight: bold; font-size: 18px; color: #000; cursor: pointer; opacity: 0; pointer-events: none; transition: opacity 0.5s; }
 
@@ -81,6 +77,11 @@
         #deadline.danger { opacity: 1; border-top: 2px solid #f00; box-shadow: 0 0 15px #f00; animation: blink-red 0.4s infinite; }
         
         #game-over { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(0,20,0,0.95); color: white; padding: 40px; border-radius: 20px; text-align: center; display: none; z-index: 1000; border: 3px solid #2ecc71; width: 75%; pointer-events: auto; }
+        
+        /* 閉じるボタンのスタイル */
+        #close-modal { position: absolute; top: 10px; right: 15px; font-size: 24px; cursor: pointer; color: #aaa; transition: color 0.2s; }
+        #close-modal:hover { color: #fff; }
+
         #loading { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: #000; color: #fff; display: flex; justify-content: center; align-items: center; z-index: 200; }
     </style>
 </head>
@@ -126,6 +127,7 @@
     <div id="deadline"></div>
     
     <div id="game-over">
+        <span id="close-modal" onclick="toggleModal(event, false)">×</span>
         <div id="new-record" style="display:none; color:#ffeb3b;">✨ NEW RECORD ✨</div>
         <h1 id="over-title" style="margin:0 0 10px 0;">ありがとう</h1>
         <p id="over-reason" style="margin-bottom:20px; color:#ccc;"></p>
@@ -135,14 +137,15 @@
 </div>
 
 <script>
-const audioStatus = { bgm: true, rotate: true, merge: true, disappear: true, final: true };
+const audioStatus = { bgm: true, rotate: true, merge: true, merge1: true, disappear: true, final: true };
 const bgm = new Audio('bgm.mp3'); bgm.loop = false;
 const seRotate = new Audio('rotate.mp3');
 const seMerge = new Audio('merge.mp3');
+const seMerge1 = new Audio('merge1.mp3'); // 追加
 const seDisappear = new Audio('disappear.mp3');
 const seFinal = new Audio('final.mp3');
 
-[{a: bgm, id: 'bgm'}, {a: seRotate, id: 'rotate'}, {a: seMerge, id: 'merge'}, {a: seDisappear, id: 'disappear'}, {a: seFinal, id: 'final'}]
+[{a: bgm, id: 'bgm'}, {a: seRotate, id: 'rotate'}, {a: seMerge, id: 'merge'}, {a: seMerge1, id: 'merge1'}, {a: seDisappear, id: 'disappear'}, {a: seFinal, id: 'final'}]
 .forEach(item => { item.a.addEventListener('error', () => { audioStatus[item.id] = false; }); });
 
 function playSE(audio, id) { if (!audioStatus[id]) return; const clone = audio.cloneNode(); clone.play().catch(()=>{}); }
@@ -214,7 +217,6 @@ function pauseGame() {
     Runner.stop(runner);
     if (audioStatus.bgm) bgm.pause();
     document.getElementById('pause-screen').style.display = 'flex';
-    // ⏸ボタンエリアを非表示に
     document.getElementById('right-controls').style.pointerEvents = 'none';
     document.getElementById('pause-btn').style.opacity = '0';
     
@@ -230,33 +232,38 @@ function pauseGame() {
 function resumeGame(e) {
     if (!isPaused || !canResume) return;
     if (e) e.stopPropagation();
-
     isPaused = false;
     currentX = WIDTH / 2;
     currentAngle = 0;
     isDragging = false; 
     canDrop = false; 
-    
     setTimeout(() => { if(!isPaused) canDrop = true; }, 300);
-
     Runner.run(runner, engine);
     if (audioStatus.bgm) bgm.play();
-    
     document.getElementById('pause-screen').style.display = 'none';
-    // ⏸ボタンエリアを表示に
     document.getElementById('right-controls').style.pointerEvents = 'auto';
     document.getElementById('pause-btn').style.opacity = '1';
-    
     const btn = document.getElementById('restart-btn-small');
     btn.style.opacity = '0'; btn.style.pointerEvents = 'none';
 }
 
+function toggleModal(e, show) {
+    if (e) e.stopPropagation();
+    document.getElementById('game-over').style.display = show ? 'block' : 'none';
+}
+
 const handleEnd = () => {
-    if (isGameOver || !canDrop || isPaused) return;
+    // ゲームオーバー時：非表示なら再表示
+    if (isGameOver) {
+        if (document.getElementById('game-over').style.display === 'none') {
+            toggleModal(null, true);
+        }
+        return;
+    }
+    if (!canDrop || isPaused) return;
     if (!gameStarted) { 
         gameStarted = true; 
         document.getElementById('start-screen').style.display = 'none'; 
-        // 開始時のみpause-btnを表示（ui-layer全体ではなくpause-btn単体）
         document.getElementById('pause-btn').style.display = 'block'; 
         if (audioStatus.bgm) bgm.play().catch(()=>{}); 
         obstacleLoop(); 
@@ -281,7 +288,13 @@ Events.on(engine, 'collisionStart', (event) => {
             if (level < 4) { 
                 const nextBody = spawn(nx, ny, level + 1); 
                 Body.setVelocity(nextBody, { x: (Math.random() - 0.5) * 3, y: -7 });
-                if (!isGameOver) { playSE(seMerge, 'merge'); createEffect(nx, ny, "#ffffff", 15, 8); score += (level + 1) * 100; document.getElementById('score').innerText = score; }
+                if (!isGameOver) { 
+                    // merge1.mp3 の出し分け：レベル3から4になる時
+                    if (level === 3) playSE(seMerge1, 'merge1');
+                    else playSE(seMerge, 'merge');
+                    
+                    createEffect(nx, ny, "#ffffff", 15, 8); score += (level + 1) * 100; document.getElementById('score').innerText = score; 
+                }
             } else {
                 const crown = spawn(nx, ny - 30, 5); crown.isFinal = true;
                 Body.setVelocity(crown, { x: (Math.random()-0.5)*15, y: -14 });
@@ -320,7 +333,8 @@ function endGame(reason, isTimeUp) {
     document.getElementById('pause-btn').style.display = 'none';
     if (!isTimeUp && audioStatus.bgm) { bgm.pause(); bgm.currentTime = 0; }
     if (score > highScore) { highScore = score; localStorage.setItem('suika_high_score', highScore); document.getElementById('new-record').style.display='block'; }
-    document.getElementById('game-over').style.display='block'; document.getElementById('over-reason').innerText = reason;
+    toggleModal(null, true);
+    document.getElementById('over-reason').innerText = reason;
     document.getElementById('final-score').innerText = score;
     setTimeout(() => { 
         const btn = document.getElementById('retry-btn');
@@ -346,7 +360,6 @@ Events.on(render, 'afterRender', () => {
     });
     ctx.globalAlpha = 1.0; ctx.globalCompositeOperation = 'source-over';
     
-    // 【修正】落下判定中でない（=一時停止ガード中を含む）場合はプレビューを描画しない
     if (gameStarted && !isGameOver && !isPaused && canDrop) {
         const lv = nextQueue[0], radius = (lv + 1) * 16 + 10, targetSize = radius * 2, img = faceImages[lv];
         if (isDragging) { 
@@ -377,8 +390,7 @@ function obstacleLoop() {
 
 setInterval(() => { if(gameStarted && !isGameOver && !isPaused && timeLeft > 0) { timeLeft--; document.getElementById('timer').innerText = timeLeft; if(timeLeft===0) endGame("タイムアップ！", true); } }, 1000);
 
-// ボタン誤爆防止
-const interactiveEls = ['restart-btn-small', 'retry-btn'];
+const interactiveEls = ['restart-btn-small', 'retry-btn', 'close-modal'];
 interactiveEls.forEach(id => {
     const el = document.getElementById(id);
     if(el){
@@ -388,7 +400,7 @@ interactiveEls.forEach(id => {
 });
 
 function updateX(e) { 
-    if(isPaused || !canDrop) return;
+    if(isPaused || !canDrop || isGameOver) return; // ゲームオーバー時は操作無効
     const rect = render.canvas.getBoundingClientRect(); 
     const clientX = e.clientX ?? e.touches?.[0].clientX ?? currentX;
     const newX = Math.max(30, Math.min(WIDTH-30, clientX - rect.left));
@@ -396,10 +408,16 @@ function updateX(e) {
     if (Math.abs(currentX - lastSoundX) > 15) { playSE(seRotate, 'rotate'); lastSoundX = currentX; }
 }
 
-window.addEventListener('mousedown', (e) => { if(!isGameOver && canDrop && !isPaused) { isDragging = true; updateX(e); } });
+window.addEventListener('mousedown', (e) => { 
+    if(isGameOver) { handleEnd(); return; } // ゲームオーバー時の再表示用
+    if(canDrop && !isPaused) { isDragging = true; updateX(e); } 
+});
 window.addEventListener('mousemove', updateX);
 window.addEventListener('mouseup', handleEnd);
-window.addEventListener('touchstart', (e) => { if(!isGameOver && canDrop && !isPaused) { isDragging = true; updateX(e); } }, {passive: false});
+window.addEventListener('touchstart', (e) => { 
+    if(isGameOver) { handleEnd(); return; }
+    if(canDrop && !isPaused) { isDragging = true; updateX(e); } 
+}, {passive: false});
 window.addEventListener('touchmove', updateX, {passive: false});
 window.addEventListener('touchend', handleEnd);
 
