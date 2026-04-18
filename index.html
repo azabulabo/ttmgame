@@ -171,7 +171,7 @@ function preloadImages(callback) {
     let loaded = 0; const total = 17;
     const check = () => { if (++loaded === total) { document.getElementById('loading').style.display='none'; callback(); } };
     for(let i=0; i<6; i++) { const img = new Image(); img.src = `images/face_${i}.png`; img.onload = () => { faceImages[i]=img; faceImageReady[i]=true; check(); }; img.onerror = check; }
-    for(let i=0; i<11; i++) { const img = new Image(); img.src = `images/obs_${i}.png`; img.onload = () => { obstacleImages[i]=img; obstacleImageReady[i]=true; check(); }; img.onerror = check; }
+    for(let i=0; i<14; i++) { const img = new Image(); img.src = `images/obs_${i}.png`; img.onload = () => { obstacleImages[i]=img; obstacleImageReady[i]=true; check(); }; img.onerror = check; }
 }
 
 World.add(engine.world, [
@@ -197,7 +197,6 @@ function createEffect(x, y, color, count = 20, speed = 10, decayBase = 0.02) {
     }
 }
 
-// 【新設】かっこいいスコア数字を浮かび上がらせる関数
 function addFloatingText(x, y, text, isBig = false) {
     floatingTexts.push({ x, y, text, life: 1.0, isBig });
 }
@@ -293,7 +292,7 @@ Events.on(engine, 'collisionStart', (event) => {
                     createEffect(nx, ny, "#ffffff", 15, 8);
                     const gain = (level + 1) * 100;
                     score += gain;
-                    addFloatingText(nx, ny, `+${gain}`); // スコア表示追加
+                    addFloatingText(nx, ny, `+${gain}`);
                     document.getElementById('score').innerText = score; 
                 }
             } else {
@@ -303,7 +302,7 @@ Events.on(engine, 'collisionStart', (event) => {
                     playSE(seFinal, 'final'); 
                     createEffect(nx, ny, "#ffffff", 25, 12); 
                     score += 5000; 
-                    addFloatingText(nx, ny, `+5000`, true); // 特大スコア表示
+                    addFloatingText(nx, ny, `+5000`, true);
                     document.getElementById('score').innerText = score; 
                 }
                 setTimeout(() => {
@@ -319,7 +318,7 @@ Events.on(engine, 'collisionStart', (event) => {
                             World.remove(engine.world, b); 
                             if (!isGameOver) {
                                 score += 500;
-                                addFloatingText(b.position.x, b.position.y, `+500`); // 障害物除去スコア
+                                addFloatingText(b.position.x, b.position.y, `+500`);
                             }
                         } 
                     });
@@ -333,10 +332,9 @@ Events.on(engine, 'afterUpdate', () => {
     if (isGameOver || !gameStarted || isPaused) return;
     particles.forEach((p, i) => { p.x += p.vx; p.y += p.vy; p.vy += 0.15; p.life -= p.decay; if(p.life <= 0) particles.splice(i, 1); });
     
-    // フローティングテキストの更新
     floatingTexts.forEach((ft, i) => {
-        ft.y -= 1.2; // 上昇
-        ft.life -= 0.015; // フェードアウト
+        ft.y -= 1.2;
+        ft.life -= 0.015;
         if (ft.life <= 0) floatingTexts.splice(i, 1);
     });
 
@@ -412,20 +410,16 @@ Events.on(render, 'afterRender', () => {
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         
-        // フォントサイズをさらに大きく
         const fontSize = ft.isBig ? '60px' : '34px';
         ctx.font = `bold ${fontSize} sans-serif`;
         
-        // 1. 強力な黒縁取り（視認性の要）
         ctx.strokeStyle = '#000000';
         ctx.lineWidth = 6;
         ctx.strokeText(ft.text, ft.x, ft.y);
         
-        // 2. メインの白い文字
         ctx.fillStyle = '#ffffff';
         ctx.fillText(ft.text, ft.x, ft.y);
         
-        // 3. 仕上げのグロー効果（少し緑を混ぜてゲーム感を出す）
         ctx.shadowColor = '#2ecc71';
         ctx.shadowBlur = 15;
         ctx.fillText(ft.text, ft.x, ft.y);
@@ -474,6 +468,35 @@ window.addEventListener('touchstart', (e) => {
 }, {passive: false});
 window.addEventListener('touchmove', updateX, {passive: false});
 window.addEventListener('touchend', handleEnd);
+
+// --- スマホ復帰時の暗転・フリーズ対策 ---
+document.addEventListener("visibilitychange", () => {
+    if (document.hidden) {
+        // 画面から離れたら強制的に一時停止
+        if (gameStarted && !isGameOver && !isPaused) {
+            pauseGame();
+        }
+    } else {
+        // 画面に戻ってきたときの処理
+        if (!isGameOver && gameStarted) {
+            // エンジンとレンダラーを再キック
+            Runner.run(runner, engine);
+            Render.run(render);
+            
+            // 一時停止中でなければ描画を安定させるために少し遅延して再開
+            if (!isPaused) {
+                // 自動で再開させたくない場合は、pauseGame()の状態を維持
+            }
+        }
+    }
+});
+
+// windowのリサイズ時にも描画が消えないよう再描画を促す
+window.addEventListener("resize", () => {
+    if (render && render.canvas) {
+        Render.run(render);
+    }
+});
 
 preloadImages(() => { updateUI(); Render.run(render); Runner.run(runner, engine); });
 </script>
