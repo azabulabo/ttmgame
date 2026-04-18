@@ -284,7 +284,7 @@ Events.on(engine, 'collisionStart', (event) => {
                 if (!isGameOver) { playSE(seMerge, 'merge'); createEffect(nx, ny, "#ffffff", 15, 8); score += (level + 1) * 100; document.getElementById('score').innerText = score; }
             } else {
                 const crown = spawn(nx, ny - 30, 5); crown.isFinal = true;
-                Body.setVelocity(crown, { x: (Math.random()-0.5)*15, y: -25 });
+                Body.setVelocity(crown, { x: (Math.random()-0.5)*15, y: -14 });
                 if (!isGameOver) { playSE(seFinal, 'final'); createEffect(nx, ny, "#ffffff", 25, 12); score += 5000; document.getElementById('score').innerText = score; }
                 setTimeout(() => {
                     playSE(seDisappear, 'disappear'); activeBigExplosion = true;
@@ -311,7 +311,7 @@ Events.on(engine, 'afterUpdate', () => {
     if (highestY < LIMIT_Y) {
         dl.classList.add('danger');
         if (!overLineStartTime) overLineStartTime = Date.now();
-        if ((Date.now() - overLineStartTime) / 1000 > 3) endGame("絶滅しました...", false);
+        if ((Date.now() - overLineStartTime) / 1000 > 3) endGame("いっぱいになった...", false);
     } else { dl.classList.remove('danger'); overLineStartTime = null; }
 });
 
