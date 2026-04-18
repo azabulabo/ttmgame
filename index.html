@@ -22,9 +22,7 @@
             overflow: hidden; 
         }
         
-        #game-container canvas {
-            image-rendering: pixelated;
-        }
+        #game-container canvas { image-rendering: pixelated; }
 
         .overlay-screen { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 50; cursor: pointer; }
         #start-screen { background: rgba(0,0,0,0.85); }
@@ -47,28 +45,31 @@
             font-family: sans-serif;
             transition: opacity 0.2s;
         }
-        #pause-btn:hover { opacity: 0.7; }
 
-        #restart-btn-small {
+        /* 【修正】ボタンのレイアウト固定用スタイル */
+        .delayed-btn {
             margin-top: 80px; padding: 10px 20px; background: none; border: 1px solid #666; 
-            color: #888; border-radius: 20px; font-size: 14px; cursor: pointer; display: none;
+            color: #888; border-radius: 20px; font-size: 14px; cursor: pointer;
+            opacity: 0; pointer-events: none; /* 最初は透明でクリック不可、でも場所は取る */
+            transition: opacity 0.5s;
+        }
+        
+        #retry-btn { 
+            margin-top: 25px; padding: 15px 40px; border-radius: 30px; 
+            background: #2ecc71; border: none; font-weight: bold; font-size: 18px; color: #000; cursor: pointer;
+            opacity: 0; pointer-events: none; /* レイアウト崩れ防止 */
+            transition: opacity 0.5s;
         }
 
         #deadline { position: absolute; top: 110px; width: 100%; height: 2px; border-top: 2px dashed #e74c3c; opacity: 0.4; z-index: 5; }
         #deadline.danger { opacity: 1; border-top: 2px solid #f00; box-shadow: 0 0 15px #f00; animation: blink-red 0.4s infinite; }
-        @keyframes blink-red { 0% { opacity: 1; } 50% { opacity: 0.2; } 100% { opacity: 1; } }
         
         #next-container { position: absolute; top: 70px; right: 10px; width: 85px; height: 45px; background: rgba(255,255,255,0.1); border-radius: 20px; display: flex; align-items: center; justify-content: space-around; border: 1px solid rgba(255,255,255,0.2); }
         .next-item { width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; }
-        .next-image { 
-            width: 100%; height: 100%; object-fit: contain; 
-            image-rendering: pixelated; 
-            display: none; 
-        }
+        .next-image { width: 100%; height: 100%; object-fit: contain; image-rendering: pixelated; display: none; }
         .value { font-size: 24px; font-weight: bold; color: #fff; text-shadow: 0 0 8px #2ecc71; }
         
         #game-over { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(0,20,0,0.95); color: white; padding: 40px; border-radius: 20px; text-align: center; display: none; z-index: 1000; border: 3px solid #2ecc71; width: 75%; pointer-events: auto; }
-        #retry-btn { display: none; margin-top: 25px; padding: 15px 40px; border-radius: 30px; background: #2ecc71; border: none; font-weight: bold; font-size: 18px; color: #000; cursor: pointer; }
         #loading { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: #000; color: #fff; display: flex; justify-content: center; align-items: center; z-index: 100; }
     </style>
 </head>
@@ -83,7 +84,7 @@
 
     <div id="pause-screen" class="overlay-screen" onclick="resumeGame()">
         <div class="blink-msg">タップして再開</div>
-        <button id="restart-btn-small" onclick="location.reload()">最初からやり直し</button>
+        <button id="restart-btn-small" class="delayed-btn" onclick="location.reload()">最初からやり直し</button>
     </div>
 
     <div id="pause-btn" onclick="pauseGame()">⏸</div>
@@ -143,7 +144,7 @@ const render = Render.create({ element: document.getElementById('game-container'
 engine.world.gravity.scale *= 1.5; 
 
 function preloadImages(callback) {
-    let loaded = 0; const total = 6 + 11;
+    let loaded = 0; const total = 17;
     const check = () => { if (++loaded === total) { document.getElementById('loading').style.display='none'; callback(); } };
     for(let i=0; i<6; i++) { const img = new Image(); img.src = `images/face_${i}.png`; img.onload = () => { faceImages[i]=img; faceImageReady[i]=true; check(); }; img.onerror = check; }
     for(let i=0; i<11; i++) { const img = new Image(); img.src = `images/obs_${i}.png`; img.onload = () => { obstacleImages[i]=img; obstacleImageReady[i]=true; check(); }; img.onerror = check; }
@@ -157,10 +158,7 @@ World.add(engine.world, [
 
 function spawn(x, y, level, isObstacle = false, sizeOverride = null) {
     const radius = isObstacle ? (sizeOverride || 20) : (level + 1) * 16 + 10;
-    const body = Bodies.circle(x, y, radius, { 
-        restitution: 0.4, friction: 0.1, label: isObstacle ? "obs" : "friend", level: level, 
-        obsIndex: Math.floor(Math.random() * 11), render: { visible: false } 
-    });
+    const body = Bodies.circle(x, y, radius, { restitution: 0.4, friction: 0.1, label: isObstacle ? "obs" : "friend", level: level, obsIndex: Math.floor(Math.random() * 11), render: { visible: false } });
     body.radius = radius;
     if (!isObstacle) Body.setAngle(body, currentAngle);
     World.add(engine.world, body);
@@ -169,18 +167,9 @@ function spawn(x, y, level, isObstacle = false, sizeOverride = null) {
 
 function createEffect(x, y, color, count = 20, speed = 10, decayBase = 0.02) {
     for (let i = 0; i < count; i++) {
-        // 軌道と到達点をよりランダムにするために角度と速度をばらけさせる
         const angle = Math.random() * Math.PI * 2;
         const force = Math.random() * speed;
-        particles.push({ 
-            x, y, 
-            vx: Math.cos(angle) * force, 
-            vy: Math.sin(angle) * force - (speed/4), 
-            size: Math.random()*6+2, 
-            color: color, 
-            life: 1.0, 
-            decay: Math.random()*0.02 + decayBase 
-        });
+        particles.push({ x, y, vx: Math.cos(angle) * force, vy: Math.sin(angle) * force - (speed/4), size: Math.random()*6+2, color: color, life: 1.0, decay: Math.random()*0.02 + decayBase });
     }
 }
 
@@ -200,8 +189,16 @@ function pauseGame() {
     if (audioStatus.bgm) bgm.pause();
     document.getElementById('pause-screen').style.display = 'flex';
     document.getElementById('pause-btn').style.display = 'none';
+    
     setTimeout(() => { canResume = true; }, 500);
-    setTimeout(() => { if(isPaused) document.getElementById('restart-btn-small').style.display = 'block'; }, 1000);
+    // 【修正】不透明度で表示させ、クリック可能にする
+    setTimeout(() => { 
+        if(isPaused) {
+            const btn = document.getElementById('restart-btn-small');
+            btn.style.opacity = '1';
+            btn.style.pointerEvents = 'auto';
+        }
+    }, 1000);
 }
 
 function resumeGame() {
@@ -211,7 +208,10 @@ function resumeGame() {
     if (audioStatus.bgm) bgm.play();
     document.getElementById('pause-screen').style.display = 'none';
     document.getElementById('pause-btn').style.display = 'flex';
-    document.getElementById('restart-btn-small').style.display = 'none';
+    // 隠しておく
+    const btn = document.getElementById('restart-btn-small');
+    btn.style.opacity = '0';
+    btn.style.pointerEvents = 'none';
 }
 
 const handleEnd = () => {
@@ -241,12 +241,10 @@ Events.on(engine, 'collisionStart', (event) => {
             if (level < 4) { 
                 const nextBody = spawn(nx, ny, level + 1); 
                 Body.setVelocity(nextBody, { x: (Math.random() - 0.5) * 3, y: -7 });
-                Body.setAngularVelocity(nextBody, (Math.random() - 0.5) * 0.15);
                 if (!isGameOver) { playSE(seMerge, 'merge'); createEffect(nx, ny, "#ffffff", 15, 8); score += (level + 1) * 100; document.getElementById('score').innerText = score; }
             } else {
                 const crown = spawn(nx, ny - 30, 5); crown.isFinal = true;
                 Body.setVelocity(crown, { x: (Math.random()-0.5)*15, y: -25 });
-                Body.setAngularVelocity(crown, (Math.random() - 0.5) * 0.3);
                 if (!isGameOver) { playSE(seFinal, 'final'); createEffect(nx, ny, "#ffffff", 25, 12); score += 5000; document.getElementById('score').innerText = score; }
                 setTimeout(() => {
                     playSE(seDisappear, 'disappear'); activeBigExplosion = true;
@@ -254,14 +252,9 @@ Events.on(engine, 'collisionStart', (event) => {
                     createEffect(ex, ey, "#ffffff", 150, 25, 0.01); 
                     createEffect(ex, ey, "#ffeb3b", 150, 28, 0.01); 
                     createEffect(ex, ey, "#2ecc71", 150, 26, 0.01); 
-
                     setTimeout(() => activeBigExplosion = false, 1500);
                     World.remove(engine.world, crown);
-                    Composite.allBodies(engine.world).forEach(b => {
-                        if (b.label === "obs" && Vector.magnitude(Vector.sub(b.position, crown.position)) < 250) {
-                            World.remove(engine.world, b); if (!isGameOver) score += 500;
-                        }
-                    });
+                    Composite.allBodies(engine.world).forEach(b => { if (b.label === "obs" && Vector.magnitude(Vector.sub(b.position, crown.position)) < 250) { World.remove(engine.world, b); if (!isGameOver) score += 500; } });
                 }, 1500);
             }
         }
@@ -289,30 +282,20 @@ function endGame(reason, isTimeUp) {
     if (score > highScore) { highScore = score; localStorage.setItem('suika_high_score', highScore); document.getElementById('new-record').style.display='block'; }
     document.getElementById('game-over').style.display='block'; document.getElementById('over-reason').innerText = reason;
     document.getElementById('final-score').innerText = score;
-    setTimeout(() => { document.getElementById('retry-btn').style.display = 'inline-block'; }, 1500);
+    // 【修正】リトライボタンを不透明にして表示
+    setTimeout(() => { 
+        const btn = document.getElementById('retry-btn');
+        btn.style.opacity = '1';
+        btn.style.pointerEvents = 'auto';
+    }, 1500);
 }
 
-// 【修正点】画像の縮尺を維持し、短い方をボディの直径に合わせる関数
 function drawCoin(ctx, img, targetDiameter) {
     if (!img || !img.complete || img.naturalWidth === 0) return;
-
-    const imgW = img.naturalWidth;
-    const imgH = img.naturalHeight;
-    const ratio = imgW / imgH;
-    
+    const imgW = img.naturalWidth, imgH = img.naturalHeight, ratio = imgW / imgH;
     let dw, dh;
-
-    // 画像の縦横の「短い方」を物理ボディの直径(targetDiameter)に合わせる
-    if (imgW > imgH) {
-        // 横長画像の場合、高さを直径に合わせ、幅は比率を維持して大きくする
-        dh = targetDiameter;
-        dw = targetDiameter * ratio;
-    } else {
-        // 縦長画像の場合、幅を直径に合わせ、高さは比率を維持して大きくする
-        dw = targetDiameter;
-        dh = targetDiameter / ratio;
-    }
-
+    if (imgW > imgH) { dh = targetDiameter; dw = targetDiameter * ratio; }
+    else { dw = targetDiameter; dh = targetDiameter / ratio; }
     ctx.drawImage(img, -dw / 2, -dh / 2, dw, dh);
 }
 
@@ -320,30 +303,22 @@ Events.on(render, 'afterRender', () => {
     const ctx = render.context;
     if (activeBigExplosion) ctx.globalCompositeOperation = 'lighter';
     particles.forEach(p => { 
-        ctx.fillStyle = p.color; 
-        ctx.globalAlpha = p.life; 
-        if (activeBigExplosion && Math.random() > 0.5) ctx.globalAlpha = p.life * 0.7;
-
-        // 【修正】エフェクトを四角形に戻す
+        ctx.fillStyle = p.color; ctx.globalAlpha = p.life; 
         ctx.fillRect(p.x - p.size/2, p.y - p.size/2, p.size, p.size);
     });
     ctx.globalAlpha = 1.0; ctx.globalCompositeOperation = 'source-over';
-    
     if (!isGameOver && canDrop && !isPaused) {
         const lv = nextQueue[0], radius = (lv + 1) * 16 + 10, targetSize = radius * 2, img = faceImages[lv];
         if (isDragging) { ctx.setLineDash([5, 5]); ctx.beginPath(); ctx.moveTo(currentX, 65); ctx.lineTo(currentX, HEIGHT); ctx.strokeStyle = "rgba(46,204,113,0.3)"; ctx.stroke(); ctx.setLineDash([]); }
         ctx.save(); ctx.translate(currentX, 65); ctx.rotate(currentAngle);
-        drawCoin(ctx, img, targetSize);
-        ctx.restore();
+        drawCoin(ctx, img, targetSize); ctx.restore();
     }
-    
     Composite.allBodies(engine.world).forEach(b => {
         if (b.label === "friend" || b.label === "obs") {
             const targetSize = b.radius * 2, img = (b.label === "obs") ? obstacleImages[b.obsIndex] : faceImages[b.level];
             ctx.save(); ctx.translate(b.position.x, b.position.y); ctx.rotate(b.angle);
             if (b.isFinal) { ctx.shadowColor = '#fff'; ctx.shadowBlur = 30 + Math.sin(Date.now()/100)*15; } 
-            drawCoin(ctx, img, targetSize);
-            ctx.restore();
+            drawCoin(ctx, img, targetSize); ctx.restore();
         }
     });
 });
