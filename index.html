@@ -24,7 +24,6 @@
         
         #game-container canvas { image-rendering: pixelated; }
 
-        /* オーバーレイ設定 */
         .overlay-screen { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 100; cursor: pointer; }
         #start-screen { background: rgba(0,0,0,0.85); }
         #pause-screen { background: rgba(0,0,0,0.7); display: none; }
@@ -32,7 +31,6 @@
         .blink-msg { color: #2ecc71; font-size: 32px; font-weight: bold; text-shadow: 0 0 15px #2ecc71; animation: pulse 1.5s infinite; }
         @keyframes pulse { 0% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.05); opacity: 0.7; } 100% { transform: scale(1); opacity: 1; } }
 
-        /* UIレイヤーの横一列レイアウト */
         #ui-layer { 
             position: absolute; top: 0; left: 0; width: 100%; height: 75px; 
             padding: 10px 15px; box-sizing: border-box;
@@ -77,8 +75,6 @@
         #deadline.danger { opacity: 1; border-top: 2px solid #f00; box-shadow: 0 0 15px #f00; animation: blink-red 0.4s infinite; }
         
         #game-over { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(0,20,0,0.95); color: white; padding: 40px; border-radius: 20px; text-align: center; display: none; z-index: 1000; border: 3px solid #2ecc71; width: 75%; pointer-events: auto; }
-        
-        /* 閉じるボタンのスタイル */
         #close-modal { position: absolute; top: 10px; right: 15px; font-size: 24px; cursor: pointer; color: #aaa; transition: color 0.2s; }
         #close-modal:hover { color: #fff; }
 
@@ -141,7 +137,7 @@ const audioStatus = { bgm: true, rotate: true, merge: true, merge1: true, disapp
 const bgm = new Audio('bgm.mp3'); bgm.loop = false;
 const seRotate = new Audio('rotate.mp3');
 const seMerge = new Audio('merge.mp3');
-const seMerge1 = new Audio('merge1.mp3'); // 追加
+const seMerge1 = new Audio('merge1.mp3');
 const seDisappear = new Audio('disappear.mp3');
 const seFinal = new Audio('final.mp3');
 
@@ -164,7 +160,7 @@ let score = 0, highScore = parseInt(localStorage.getItem('suika_high_score')) ||
 let timeLeft = 45, isGameOver = false, gameStarted = false, isPaused = false, canResume = false;
 let nextQueue = [0, 0, 0].map(() => Math.floor(Math.random() * 3));
 let isDragging = false, currentX = WIDTH/2, currentAngle = 0, lastSoundX = WIDTH/2, canDrop = true, overLineStartTime = null;
-let particles = [], activeBigExplosion = false;
+let particles = [], floatingTexts = [], activeBigExplosion = false;
 
 const engine = Engine.create();
 const runner = Runner.create();
@@ -201,6 +197,11 @@ function createEffect(x, y, color, count = 20, speed = 10, decayBase = 0.02) {
     }
 }
 
+// 【新設】かっこいいスコア数字を浮かび上がらせる関数
+function addFloatingText(x, y, text, isBig = false) {
+    floatingTexts.push({ x, y, text, life: 1.0, isBig });
+}
+
 function updateUI() {
     [1, 2].forEach(i => {
         const level = nextQueue[i], imgEl = document.getElementById(`n${i}-img`);
@@ -219,7 +220,6 @@ function pauseGame() {
     document.getElementById('pause-screen').style.display = 'flex';
     document.getElementById('right-controls').style.pointerEvents = 'none';
     document.getElementById('pause-btn').style.opacity = '0';
-    
     setTimeout(() => { canResume = true; }, 500);
     setTimeout(() => { 
         if(isPaused) {
@@ -253,7 +253,6 @@ function toggleModal(e, show) {
 }
 
 const handleEnd = () => {
-    // ゲームオーバー時：非表示なら再表示
     if (isGameOver) {
         if (document.getElementById('game-over').style.display === 'none') {
             toggleModal(null, true);
@@ -289,16 +288,24 @@ Events.on(engine, 'collisionStart', (event) => {
                 const nextBody = spawn(nx, ny, level + 1); 
                 Body.setVelocity(nextBody, { x: (Math.random() - 0.5) * 3, y: -7 });
                 if (!isGameOver) { 
-                    // merge1.mp3 の出し分け：レベル3から4になる時
                     if (level === 3) playSE(seMerge1, 'merge1');
                     else playSE(seMerge, 'merge');
-                    
-                    createEffect(nx, ny, "#ffffff", 15, 8); score += (level + 1) * 100; document.getElementById('score').innerText = score; 
+                    createEffect(nx, ny, "#ffffff", 15, 8);
+                    const gain = (level + 1) * 100;
+                    score += gain;
+                    addFloatingText(nx, ny, `+${gain}`); // スコア表示追加
+                    document.getElementById('score').innerText = score; 
                 }
             } else {
                 const crown = spawn(nx, ny - 30, 5); crown.isFinal = true;
                 Body.setVelocity(crown, { x: (Math.random()-0.5)*15, y: -14 });
-                if (!isGameOver) { playSE(seFinal, 'final'); createEffect(nx, ny, "#ffffff", 25, 12); score += 5000; document.getElementById('score').innerText = score; }
+                if (!isGameOver) { 
+                    playSE(seFinal, 'final'); 
+                    createEffect(nx, ny, "#ffffff", 25, 12); 
+                    score += 5000; 
+                    addFloatingText(nx, ny, `+5000`, true); // 特大スコア表示
+                    document.getElementById('score').innerText = score; 
+                }
                 setTimeout(() => {
                     playSE(seDisappear, 'disappear'); activeBigExplosion = true;
                     const ex = crown.position.x, ey = crown.position.y;
@@ -307,7 +314,15 @@ Events.on(engine, 'collisionStart', (event) => {
                     createEffect(ex, ey, "#2ecc71", 150, 26, 0.01); 
                     setTimeout(() => activeBigExplosion = false, 1500);
                     World.remove(engine.world, crown);
-                    Composite.allBodies(engine.world).forEach(b => { if (b.label === "obs" && Vector.magnitude(Vector.sub(b.position, crown.position)) < 250) { World.remove(engine.world, b); if (!isGameOver) score += 500; } });
+                    Composite.allBodies(engine.world).forEach(b => { 
+                        if (b.label === "obs" && Vector.magnitude(Vector.sub(b.position, crown.position)) < 250) { 
+                            World.remove(engine.world, b); 
+                            if (!isGameOver) {
+                                score += 500;
+                                addFloatingText(b.position.x, b.position.y, `+500`); // 障害物除去スコア
+                            }
+                        } 
+                    });
                 }, 1500);
             }
         }
@@ -317,6 +332,14 @@ Events.on(engine, 'collisionStart', (event) => {
 Events.on(engine, 'afterUpdate', () => {
     if (isGameOver || !gameStarted || isPaused) return;
     particles.forEach((p, i) => { p.x += p.vx; p.y += p.vy; p.vy += 0.15; p.life -= p.decay; if(p.life <= 0) particles.splice(i, 1); });
+    
+    // フローティングテキストの更新
+    floatingTexts.forEach((ft, i) => {
+        ft.y -= 1.2; // 上昇
+        ft.life -= 0.015; // フェードアウト
+        if (ft.life <= 0) floatingTexts.splice(i, 1);
+    });
+
     const bodies = Composite.allBodies(engine.world);
     let highestY = 999;
     bodies.forEach(b => { if (!b.isStatic && b.position.y > 80 && !b.isFinal) highestY = Math.min(highestY, b.position.y); });
@@ -353,6 +376,8 @@ function drawCoin(ctx, img, targetDiameter) {
 
 Events.on(render, 'afterRender', () => {
     const ctx = render.context;
+    
+    // パーティクル描画
     if (activeBigExplosion) ctx.globalCompositeOperation = 'lighter';
     particles.forEach(p => { 
         ctx.fillStyle = p.color; ctx.globalAlpha = p.life; 
@@ -360,6 +385,7 @@ Events.on(render, 'afterRender', () => {
     });
     ctx.globalAlpha = 1.0; ctx.globalCompositeOperation = 'source-over';
     
+    // コイン・障害物描画
     if (gameStarted && !isGameOver && !isPaused && canDrop) {
         const lv = nextQueue[0], radius = (lv + 1) * 16 + 10, targetSize = radius * 2, img = faceImages[lv];
         if (isDragging) { 
@@ -377,6 +403,25 @@ Events.on(render, 'afterRender', () => {
             if (b.isFinal) { ctx.shadowColor = '#fff'; ctx.shadowBlur = 30 + Math.sin(Date.now()/100)*15; } 
             drawCoin(ctx, img, targetSize); ctx.restore();
         }
+    });
+
+    // 【新設】かっこいいスコア数字の描画
+    floatingTexts.forEach(ft => {
+        ctx.save();
+        ctx.globalAlpha = ft.life;
+        ctx.textAlign = 'center';
+        ctx.font = ft.isBig ? 'bold 36px sans-serif' : 'bold 24px sans-serif';
+        
+        // 装飾：シャドウと縁取り
+        ctx.shadowColor = '#2ecc71';
+        ctx.shadowBlur = 10;
+        ctx.strokeStyle = '#fff';
+        ctx.lineWidth = 4;
+        ctx.strokeText(ft.text, ft.x, ft.y);
+        
+        ctx.fillStyle = '#2ecc71';
+        ctx.fillText(ft.text, ft.x, ft.y);
+        ctx.restore();
     });
 });
 
@@ -400,7 +445,7 @@ interactiveEls.forEach(id => {
 });
 
 function updateX(e) { 
-    if(isPaused || !canDrop || isGameOver) return; // ゲームオーバー時は操作無効
+    if(isPaused || !canDrop || isGameOver) return;
     const rect = render.canvas.getBoundingClientRect(); 
     const clientX = e.clientX ?? e.touches?.[0].clientX ?? currentX;
     const newX = Math.max(30, Math.min(WIDTH-30, clientX - rect.left));
@@ -409,7 +454,7 @@ function updateX(e) {
 }
 
 window.addEventListener('mousedown', (e) => { 
-    if(isGameOver) { handleEnd(); return; } // ゲームオーバー時の再表示用
+    if(isGameOver) { handleEnd(); return; }
     if(canDrop && !isPaused) { isDragging = true; updateX(e); } 
 });
 window.addEventListener('mousemove', updateX);
